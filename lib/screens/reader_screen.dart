@@ -258,6 +258,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             int rightPage = currentPages[1];
             int newRightPage = rightPage + 1;
             if (newRightPage < widget.book.totalPages) {
+              // 次のページが存在する場合、右ページを左ページにして新しい右ページを表示
               targetPages.add(rightPage);
               targetPages.add(newRightPage);
             } else if (rightPage < widget.book.totalPages) {
@@ -333,7 +334,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           }
         }
 
-        // 既存のレイアウトに見つからない場合は、最も近いページを探す
+        // 既存のレイアウトに見つからない場合は、直接ページを表示する
         if (targetIndex == -1) {
           print('目標ページ構成に対応する既存のレイアウトが見つかりませんでした: $targetPages');
 
@@ -341,65 +342,33 @@ class _ReaderScreenState extends State<ReaderScreen> {
           if (targetPages.length == 1) {
             final targetPage = targetPages[0];
 
-            // 最も近いページを含むレイアウトを探す
-            int closestDistance = widget.book.totalPages;
+            // 単一ページを直接表示
+            print('単一ページを直接表示します: $targetPage');
 
-            for (int i = 0; i < _pageLayout.length; i++) {
-              final layoutData = _pageLayout[i];
+            // 単一ページ表示モードに切り替え
+            setState(() {
+              _useDoublePage = false;
+            });
 
-              if (layoutData < 65536) {
-                // シングルページの場合
-                final distance = (layoutData - targetPage).abs();
-                if (distance < closestDistance) {
-                  closestDistance = distance;
-                  targetIndex = i;
-                }
-              } else {
-                // ダブルページの場合
-                final leftPage = layoutData >> 16;
-                final rightPage = layoutData & 0xFFFF;
-
-                final distanceLeft = (leftPage - targetPage).abs();
-                final distanceRight = (rightPage - targetPage).abs();
-                final minDistance =
-                    distanceLeft < distanceRight ? distanceLeft : distanceRight;
-
-                if (minDistance < closestDistance) {
-                  closestDistance = minDistance;
-                  targetIndex = i;
-                }
-              }
-            }
+            // ページに直接ジャンプ
+            _pageController.jumpToPage(targetPage);
+            print('ページ移動完了');
+            return;
           } else if (targetPages.length == 2) {
             // ダブルページの場合
             final targetLeftPage = targetPages[0];
             final targetRightPage = targetPages[1];
 
-            // 最も近いページを含むレイアウトを探す
-            int closestDistance = widget.book.totalPages * 2;
+            print('ダブルページを直接表示します: 左=$targetLeftPage, 右=$targetRightPage');
 
-            for (int i = 0; i < _pageLayout.length; i++) {
-              final layoutData = _pageLayout[i];
+            // 新しいレイアウトデータを作成
+            final newLayoutData = (targetLeftPage << 16) | targetRightPage;
 
-              if (layoutData >= 65536) {
-                // ダブルページの場合のみ比較
-                final leftPage = layoutData >> 16;
-                final rightPage = layoutData & 0xFFFF;
+            // レイアウトに追加
+            _pageLayout.add(newLayoutData);
+            targetIndex = _pageLayout.length - 1;
 
-                final distanceLeft = (leftPage - targetLeftPage).abs();
-                final distanceRight = (rightPage - targetRightPage).abs();
-                final totalDistance = distanceLeft + distanceRight;
-
-                if (totalDistance < closestDistance) {
-                  closestDistance = totalDistance;
-                  targetIndex = i;
-                }
-              }
-            }
-          }
-
-          if (targetIndex != -1) {
-            print('最も近いページを含むレイアウトが見つかりました: インデックス $targetIndex');
+            print('新しいレイアウトを作成しました: インデックス $targetIndex, データ $newLayoutData');
           } else {
             print('適切なレイアウトが見つかりませんでした');
             return;
