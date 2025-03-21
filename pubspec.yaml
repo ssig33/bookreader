@@ -50,6 +50,7 @@ dependencies:
   pdf: ^3.10.7
   archive: ^3.4.10
   syncfusion_flutter_pdf: ^28.2.12
+  flutter_launcher_icons: ^0.14.3
 
 dev_dependencies:
   flutter_test:
@@ -103,3 +104,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# icons
+flutter_icons:
+  ios: true
+  image_path: "assets/images/launcher/icon_ios.png"
+  remove_alpha_ios: true
+  android: true
+  adaptive_icon_background: "assets/images/launcher/icon_adaptive_background.png"
+  adaptive_icon_foreground: "assets/images/launcher/icon_adaptive_foreground.png"
