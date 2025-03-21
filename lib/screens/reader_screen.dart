@@ -438,17 +438,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 前のページボタン
+                        // 左側のボタン
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: IconButton(
-                            icon: Icon(
-                              _isRightToLeft
-                                  ? Icons.keyboard_arrow_right
-                                  : Icons.keyboard_arrow_left,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_left,
                               color: Colors.white,
                               size: 32,
                             ),
@@ -456,7 +454,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 _isRightToLeft
                                     ? _goToNextPage
                                     : _goToPreviousPage,
-                            tooltip: '前のページ',
+                            tooltip: _isRightToLeft ? '次のページ' : '前のページ',
                           ),
                         ),
 
@@ -478,17 +476,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                         ),
 
-                        // 次のページボタン
+                        // 右側のボタン
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.5),
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: IconButton(
-                            icon: Icon(
-                              _isRightToLeft
-                                  ? Icons.keyboard_arrow_left
-                                  : Icons.keyboard_arrow_right,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_right,
                               color: Colors.white,
                               size: 32,
                             ),
@@ -496,7 +492,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 _isRightToLeft
                                     ? _goToPreviousPage
                                     : _goToNextPage,
-                            tooltip: '次のページ',
+                            tooltip: _isRightToLeft ? '前のページ' : '次のページ',
                           ),
                         ),
                       ],
