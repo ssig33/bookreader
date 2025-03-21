@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import '../models/book.dart';
+import 'file_service.dart';
 
 class BookService {
   // 本来はデータベースやファイルに保存するが、簡易的にメモリ内リストで管理
   List<Book> _books = [];
   final _uuid = Uuid();
+  final _fileService = FileService();
+  bool _initialized = false;
 
   // シングルトンパターン
   static final BookService _instance = BookService._internal();
@@ -17,6 +20,14 @@ class BookService {
   }
 
   BookService._internal();
+
+  // サービスを初期化
+  Future<void> initialize() async {
+    if (_initialized) return;
+
+    await _fileService.initialize();
+    _initialized = true;
+  }
 
   // 全ての本を取得
   List<Book> getAllBooks() {
@@ -34,6 +45,8 @@ class BookService {
 
   // 本を追加
   Future<Book> addBook(String filePath) async {
+    if (!_initialized) await initialize();
+
     final file = File(filePath);
     if (!await file.exists()) {
       throw Exception('File does not exist: $filePath');
@@ -53,11 +66,14 @@ class BookService {
     // ファイル名を取得（拡張子なし）
     final fileName = path.basenameWithoutExtension(filePath);
 
+    // ファイルをアプリの管理領域にコピー
+    final managedFilePath = await _fileService.copyFileToAppStorage(filePath);
+
     // 新しい本を作成
     final book = Book(
       id: _uuid.v4(),
       title: fileName,
-      filePath: filePath,
+      filePath: managedFilePath, // アプリ管理領域内のパスを保存
       fileType: fileType,
       addedAt: DateTime.now(),
     );
@@ -80,8 +96,24 @@ class BookService {
   }
 
   // 本を削除
-  void deleteBook(String id) {
-    _books.removeWhere((book) => book.id == id);
+  Future<void> deleteBook(String id) async {
+    if (!_initialized) await initialize();
+
+    final bookIndex = _books.indexWhere((book) => book.id == id);
+    if (bookIndex != -1) {
+      final book = _books[bookIndex];
+
+      // アプリの管理領域からファイルを削除
+      try {
+        await _fileService.deleteFile(book.filePath);
+      } catch (e) {
+        print('ファイル削除エラー: $e');
+        // ファイル削除に失敗しても、リストからは削除する
+      }
+
+      // リストから削除
+      _books.removeAt(bookIndex);
+    }
   }
 
   // 本の名前を変更

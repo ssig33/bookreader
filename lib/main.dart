@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
+import 'services/file_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // アプリのファイル管理サービスを初期化
+  await FileService().initialize();
+
   runApp(const MyApp());
 }
 

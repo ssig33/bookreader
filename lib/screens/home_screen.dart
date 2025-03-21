@@ -6,6 +6,7 @@ import 'dart:io';
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../widgets/book_list_item.dart';
+import 'storage_info_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -24,7 +25,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadBooks();
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      await _bookService.initialize();
+      _loadBooks();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('初期化エラー: ${e.toString()}')));
+      }
+    }
   }
 
   void _loadBooks() {
@@ -130,13 +144,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Text('キャンセル'),
               ),
               TextButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(context);
-                  _bookService.deleteBook(id);
-                  _loadBooks();
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('ファイルを削除しました')));
+                  try {
+                    await _bookService.deleteBook(id);
+                    _loadBooks();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('ファイルを削除しました')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('削除エラー: ${e.toString()}')),
+                      );
+                    }
+                  }
                 },
                 child: const Text('削除'),
               ),
@@ -225,6 +249,18 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterDialog,
             tooltip: 'タグでフィルター',
+          ),
+          IconButton(
+            icon: const Icon(Icons.storage),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const StorageInfoScreen(),
+                ),
+              ).then((_) => _loadBooks()); // 戻ってきたら本のリストを更新
+            },
+            tooltip: 'ストレージ情報',
           ),
         ],
       ),

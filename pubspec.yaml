@@ -44,6 +44,7 @@ dependencies:
   uuid: ^4.3.3
   shared_preferences: ^2.2.2
   cross_file: ^0.3.4+2
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
