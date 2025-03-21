@@ -379,6 +379,22 @@ class FileService {
     }
   }
 
+  /// ファイルをバイト配列として読み込む
+  Future<Uint8List> getFileBytes(String filePath) async {
+    if (!_initialized) await initialize();
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('File does not exist: $filePath');
+    }
+
+    try {
+      return await file.readAsBytes();
+    } catch (e) {
+      throw Exception('Failed to read file bytes: $e');
+    }
+  }
+
   /// キャッシュをクリア
   Future<void> clearCache() async {
     if (!_initialized) await initialize();

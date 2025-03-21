@@ -50,6 +50,7 @@ dependencies:
   pdf: ^3.10.7
   archive: ^3.4.10
   syncfusion_flutter_pdf: ^28.2.12
+  syncfusion_flutter_pdfviewer: ^28.2.12
   flutter_launcher_icons: ^0.14.3
 
 dev_dependencies:
