@@ -235,33 +235,81 @@ class _ReaderScreenState extends State<ReaderScreen> {
           print('現在ダブルページ表示: 左ページ $leftPage, 右ページ $rightPage');
         }
 
-        // 移動先のページ番号を計算
-        int targetRealPage;
+        // 移動先のページ構成を計算
+        List<int> targetPages = [];
         if (direction > 0) {
           // 次のページへ
-          targetRealPage = currentPages.last + 1;
-          print('次のページへ: $targetRealPage');
+          if (currentPages.length == 1) {
+            // 現在シングルページの場合、次の2ページを表示
+            int nextPage = currentPages[0] + 1;
+            if (nextPage < widget.book.totalPages) {
+              // 次のページが存在する場合
+              if (nextPage + 1 < widget.book.totalPages) {
+                // 次の2ページを表示
+                targetPages.add(nextPage);
+                targetPages.add(nextPage + 1);
+              } else {
+                // 最後のページの場合は単独表示
+                targetPages.add(nextPage);
+              }
+            }
+          } else {
+            // 現在ダブルページの場合、右ページを左ページにして新しい右ページを表示
+            int rightPage = currentPages[1];
+            int newRightPage = rightPage + 1;
+            if (newRightPage < widget.book.totalPages) {
+              targetPages.add(rightPage);
+              targetPages.add(newRightPage);
+            } else if (rightPage < widget.book.totalPages) {
+              // 最後のページの場合は単独表示
+              targetPages.add(rightPage);
+            }
+          }
         } else {
           // 前のページへ
-          targetRealPage = currentPages.first - 1;
-          print('前のページへ: $targetRealPage');
+          if (currentPages.length == 1) {
+            // 現在シングルページの場合、前の2ページを表示
+            int prevPage = currentPages[0] - 1;
+            if (prevPage >= 0) {
+              // 前のページが存在する場合
+              if (prevPage - 1 >= 0) {
+                // 前の2ページを表示
+                targetPages.add(prevPage - 1);
+                targetPages.add(prevPage);
+              } else {
+                // 最初のページの場合は単独表示
+                targetPages.add(prevPage);
+              }
+            }
+          } else {
+            // 現在ダブルページの場合、左ページを右ページにして新しい左ページを表示
+            int leftPage = currentPages[0];
+            int newLeftPage = leftPage - 1;
+            if (newLeftPage >= 0) {
+              targetPages.add(newLeftPage);
+              targetPages.add(leftPage);
+            } else if (leftPage >= 0) {
+              // 最初のページの場合は単独表示
+              targetPages.add(leftPage);
+            }
+          }
         }
 
-        // ページ範囲チェック
-        if (targetRealPage < 0 || targetRealPage >= widget.book.totalPages) {
-          print('目標ページが範囲外です: $targetRealPage');
+        if (targetPages.isEmpty) {
+          print('移動先のページがありません');
           return;
         }
 
-        // 目標ページを含むレイアウトインデックスを探す
+        print('目標ページ構成: $targetPages');
+
+        // 目標ページ構成に対応するレイアウトインデックスを探す
         for (int i = 0; i < _pageLayout.length; i++) {
           final layoutData = _pageLayout[i];
-          print('インデックス $i のレイアウトデータ: $layoutData');
 
           if (layoutData < 65536) {
             // シングルページの場合
-            if (layoutData == targetRealPage) {
-              print('目標ページが見つかりました: インデックス $i, ページ $targetRealPage');
+            if (targetPages.length == 1 && layoutData == targetPages[0]) {
+              print('目標ページが見つかりました: インデックス $i, ページ ${targetPages[0]}');
               print('_pageController.jumpToPage($i) を呼び出します');
               _pageController.jumpToPage(i);
               print('ページ移動完了');
@@ -272,7 +320,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
             final leftPage = layoutData >> 16;
             final rightPage = layoutData & 0xFFFF;
 
-            if (leftPage == targetRealPage || rightPage == targetRealPage) {
+            if (targetPages.length == 2 &&
+                leftPage == targetPages[0] &&
+                rightPage == targetPages[1]) {
               print(
                 '目標ページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
               );
@@ -284,7 +334,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           }
         }
 
-        print('目標ページに対応するレイアウトが見つかりませんでした: $targetRealPage');
+        print('目標ページ構成に対応するレイアウトが見つかりませんでした: $targetPages');
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         final targetPage = _currentPage + direction;
