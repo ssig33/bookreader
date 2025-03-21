@@ -454,30 +454,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // キーボードイベントを処理するメソッド
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
+    // デバッグ: キーイベントの情報をログに出力
+    print(
+      'キーイベント: ${event.runtimeType}, キー: ${event.logicalKey.keyLabel}, コード: ${event.logicalKey.keyId}',
+    );
+
     if (event is RawKeyDownEvent) {
+      print('キーダウンイベント検出: ${event.logicalKey.keyLabel}');
+
       if (event.logicalKey == LogicalKeyboardKey.keyJ) {
+        print('J キーが押されました');
         if (event.isShiftPressed) {
           // Shift+J: 見開きでも1ページだけ進む
+          print('Shift+J: 1ページだけ進みます');
           _goToNextSinglePage();
         } else {
           // j: 常に次のページへ（読み方向に関係なく）
+          print('j: 次のページへ移動します');
           _goToNextPage();
         }
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.keyK) {
+        print('K キーが押されました');
         if (event.isShiftPressed) {
           // Shift+K: 見開きでも1ページだけ戻る
+          print('Shift+K: 1ページだけ戻ります');
           _goToPreviousSinglePage();
         } else {
           // k: 常に前のページへ（読み方向に関係なく）
+          print('k: 前のページへ移動します');
           _goToPreviousPage();
         }
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
+        print('H キーが押されました: 1ページだけ進みます');
         // h: Shift+J と同等（見開きでも1ページだけ進む）
         _goToNextSinglePage();
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.keyL) {
+        print('L キーが押されました: 1ページだけ戻ります');
         // l: Shift+K と同等（見開きでも1ページだけ戻る）
         _goToPreviousSinglePage();
         return KeyEventResult.handled;
