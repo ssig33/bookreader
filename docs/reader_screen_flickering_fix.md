@@ -51,171 +51,34 @@
    - `navigateToRelativePage`メソッドでは`jumpToPage`を使用しており、これはアニメーションなしで即座にページを切り替えます。
    - この即時切り替えが、特に画像が完全に読み込まれる前に行われると、ちらつきの原因になる可能性があります。
 
-## 解決策の提案
+## 実装済みの改善
 
-1. **画像のプリロード実装**：
-   - 現在表示しているページの前後のページをバックグラウンドで事前に読み込むことで、ページ遷移時のちらつきを減らせます。
-   - `PageView`の`onPageChanged`イベントで、次の数ページを事前に読み込むロジックを追加できます。
+ページ遷移時のちらつきを軽減するため、以下の改善を実装しました：
 
-   ```dart
-   // ReaderScreen.dartのonPageChangedイベントに追加
-   onPageChanged: (int page) {
-     setState(() {
-       _currentPage = page;
-     });
-     _navigation?.updateLastReadPage(page);
-     
-     // 次の数ページをプリロード
-     _preloadAdjacentPages(page);
-   },
-   
-   // プリロード用のメソッド
-   void _preloadAdjacentPages(int currentPage) {
-     // 現在のページの前後2ページをプリロード
-     final pagesToPreload = [
-       currentPage - 2,
-       currentPage - 1,
-       currentPage + 1,
-       currentPage + 2,
-     ];
-     
-     for (final page in pagesToPreload) {
-       if (page >= 0 && page < widget.book.totalPages) {
-         _imageLoader.preloadPage(page);
-       }
-     }
-   }
-   ```
+1. **メモリ内画像キャッシュの実装** (2025/3/21)
+   - ReaderImageLoaderクラスにLRUキャッシュを実装
+   - 最大10ページ分の画像データをメモリに保持
+   - ディスクからの読み込み回数を削減
 
-2. **メモリ内画像キャッシュの強化**：
-   - 現在は画像のパスのみをキャッシュしていますが、実際の画像データ（`Uint8List`）をメモリにキャッシュすることで、ディスクからの読み込み時間を削減できます。
-   - LRU（Least Recently Used）キャッシュを実装して、メモリ使用量を管理しながら頻繁にアクセスされる画像をメモリに保持できます。
+2. **隣接ページのプリロード機能の追加** (2025/3/21)
+   - ページ変更時に前後のページを自動的にプリロード
+   - 見開きページレイアウトに対応したプリロード処理
+   - 範囲外のページを適切に処理
 
-   ```dart
-   // ReaderImageLoader.dartに追加
-   // メモリ内画像キャッシュ
-   final Map<int, Uint8List> _imageCache = {};
-   final int _maxCacheSize = 10; // キャッシュするページ数
-   final List<int> _cacheOrder = []; // LRUキャッシュの順序を管理
-   
-   // 画像をプリロードしてキャッシュに保存
-   Future<void> preloadPage(int pageIndex) async {
-     if (_imageCache.containsKey(pageIndex)) {
-       // すでにキャッシュにある場合は、キャッシュ順序を更新
-       _cacheOrder.remove(pageIndex);
-       _cacheOrder.add(pageIndex);
-       return;
-     }
-     
-     final imageData = await _fileService.getZipImageData(
-       book.filePath,
-       pageIndex,
-     );
-     
-     if (imageData != null) {
-       // キャッシュが最大サイズに達した場合、最も古いエントリを削除
-       if (_cacheOrder.length >= _maxCacheSize && _cacheOrder.isNotEmpty) {
-         final oldestPage = _cacheOrder.removeAt(0);
-         _imageCache.remove(oldestPage);
-       }
-       
-       // 新しい画像をキャッシュに追加
-       _imageCache[pageIndex] = imageData;
-       _cacheOrder.add(pageIndex);
-     }
-   }
-   
-   // キャッシュから画像を取得（なければディスクから読み込む）
-   Future<Uint8List?> getImageData(int pageIndex) async {
-     // キャッシュにある場合はそれを返す
-     if (_imageCache.containsKey(pageIndex)) {
-       // キャッシュ順序を更新
-       _cacheOrder.remove(pageIndex);
-       _cacheOrder.add(pageIndex);
-       return _imageCache[pageIndex];
-     }
-     
-     // キャッシュにない場合はディスクから読み込む
-     return await _fileService.getZipImageData(book.filePath, pageIndex);
-   }
-   ```
+## 今後の改善候補（必要に応じて）
 
-3. **gaplessPlaybackの確認**：
-   - `Image.memory`ウィジェットには既に`gaplessPlayback: true`が設定されていますが、これが正しく機能しているか確認してください。
+以下の項目は、現在の改善で十分な効果が得られない場合に追加実装を検討できます：
 
-4. **PageViewの最適化**：
-   - `PageView.builder`の代わりに、カスタムのページ遷移アニメーションを実装することで、画像の読み込みとアニメーションをより細かく制御できます。
-   - または、`PageView`の`viewportFraction`プロパティを調整して、次のページを部分的に表示することで、ユーザーに次のページが読み込まれていることを視覚的に示すことができます。
+1. **AnimatedSwitcherを使用した画像遷移の最適化**
+   - 画像切り替え時のアニメーション効果を追加
+   - 画像間のスムーズな遷移を実現
 
-   ```dart
-   // ReaderScreen.dartのPageView.builderを修正
-   PageView.builder(
-     controller: _pageController,
-     reverse: _isRightToLeft,
-     viewportFraction: 0.99, // わずかに次のページを表示
-     onPageChanged: (int page) {
-       setState(() {
-         _currentPage = page;
-       });
-       _navigation?.updateLastReadPage(page);
-       _preloadAdjacentPages(page);
-     },
-     // ...残りのコード
-   ),
-   ```
+2. **PageViewの設定調整**
+   - viewportFractionプロパティの調整
+   - カスタムページ遷移アニメーションの実装
 
-5. **setState呼び出しの最適化**：
-   - `onPageChanged`内の`setState`呼び出しを最適化して、必要な部分のみを更新するようにします。
+3. **setState呼び出しの最適化**
+   - 必要な部分のみを更新するよう最適化
 
-6. **画像表示の最適化**：
-   - 現在の画像が消える前に次の画像が読み込まれるように、オーバーレイ表示やクロスフェード効果を実装することを検討してください。
-   - `AnimatedSwitcher`や`FadeTransition`を使用して、画像間のスムーズな遷移を実現できます。
-
-   ```dart
-   // ReaderImageLoader.dartのbuildSinglePageViewメソッドを修正
-   Widget buildSinglePageView(
-     int pageIndex,
-     bool useDoublePage,
-     BuildContext context,
-   ) {
-     return FutureBuilder<Uint8List?>(
-       // getImageDataを使用してキャッシュから画像を取得
-       future: getImageData(pageIndex),
-       builder: (context, snapshot) {
-         // ...既存のコード
-         
-         // 画像を表示（AnimatedSwitcherでスムーズな遷移を実現）
-         return Container(
-           color: Colors.black,
-           constraints: useDoublePage
-               ? BoxConstraints(
-                   maxWidth: MediaQuery.of(context).size.width / 2,
-                 )
-               : null,
-           child: AnimatedSwitcher(
-             duration: const Duration(milliseconds: 200),
-             child: Image.memory(
-               snapshot.data!,
-               key: ValueKey<int>(pageIndex), // キーを指定して異なる画像と認識させる
-               fit: BoxFit.contain,
-               gaplessPlayback: true,
-             ),
-           ),
-         );
-       },
-     );
-   }
-   ```
-
-## 推奨される実装アプローチ
-
-最も効果的な解決策は、画像のプリロードとメモリ内キャッシュの強化を組み合わせることです。これにより、ページ遷移時に画像が既にメモリに読み込まれている状態になり、ちらつきを大幅に減らすことができるでしょう。
-
-実装の優先順位：
-
-1. メモリ内画像キャッシュの実装
-2. 隣接ページのプリロード機能の追加
-3. AnimatedSwitcherを使用した画像遷移の最適化
-4. PageViewの設定調整（必要に応じて）
-
-これらの改善を実装することで、ページ遷移時のちらつきを大幅に軽減し、よりスムーズな読書体験を提供できるようになります。
+4. **gaplessPlaybackの確認と調整**
+   - 現在の実装の効果を検証
