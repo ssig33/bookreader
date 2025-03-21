@@ -7,6 +7,7 @@ import '../models/book.dart';
 import '../services/book_service.dart';
 import '../widgets/book_list_item.dart';
 import 'storage_info_screen.dart';
+import 'reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -233,10 +234,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openBook(Book book) {
-    // TODO: 本を開く画面に遷移する
-    ScaffoldMessenger.of(
+    Navigator.push(
       context,
-    ).showSnackBar(SnackBar(content: Text('${book.title}を開きます（未実装）')));
+      MaterialPageRoute(builder: (context) => ReaderScreen(book: book)),
+    ).then((_) => _loadBooks()); // 戻ってきたら本のリストを更新
   }
 
   @override
