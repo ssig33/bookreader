@@ -161,6 +161,83 @@ class _ReaderScreenState extends State<ReaderScreen> {
     print('--------------------------------');
   }
 
+  /// 隣接するページをプリロードする
+  void _preloadAdjacentPages(int currentPage) {
+    if (_imageLoader == null) return;
+
+    // 読み方向に応じてプリロードするページを決定
+    final pagesToPreload = <int>[];
+
+    // 見開きページの場合は、レイアウトに基づいてプリロード
+    if (_pageLayout != null && _pageLayout!.useDoublePage) {
+      // 現在のページレイアウトインデックスを取得
+      final currentLayoutIndex = currentPage;
+
+      // 前後のレイアウトインデックスを計算
+      final prevLayoutIndex = currentLayoutIndex - 1;
+      final nextLayoutIndex = currentLayoutIndex + 1;
+
+      // 前のレイアウトに含まれるページをプリロード
+      if (prevLayoutIndex >= 0 &&
+          prevLayoutIndex < _pageLayout!.pageLayout.length) {
+        final prevPageData = _pageLayout!.pageLayout[prevLayoutIndex];
+        if (prevPageData < 65536) {
+          // シングルページの場合
+          pagesToPreload.add(prevPageData);
+        } else {
+          // ダブルページの場合
+          pagesToPreload.add(prevPageData >> 16); // 左ページ
+          pagesToPreload.add(prevPageData & 0xFFFF); // 右ページ
+        }
+      }
+
+      // 次のレイアウトに含まれるページをプリロード
+      if (nextLayoutIndex >= 0 &&
+          nextLayoutIndex < _pageLayout!.pageLayout.length) {
+        final nextPageData = _pageLayout!.pageLayout[nextLayoutIndex];
+        if (nextPageData < 65536) {
+          // シングルページの場合
+          pagesToPreload.add(nextPageData);
+        } else {
+          // ダブルページの場合
+          pagesToPreload.add(nextPageData >> 16); // 左ページ
+          pagesToPreload.add(nextPageData & 0xFFFF); // 右ページ
+        }
+      }
+
+      // 現在のページも解析してプリロード（まだ読み込まれていない可能性があるため）
+      final currentPageData = _pageLayout!.pageLayout[currentLayoutIndex];
+      if (currentPageData >= 65536) {
+        // ダブルページの場合
+        pagesToPreload.add(currentPageData >> 16); // 左ページ
+        pagesToPreload.add(currentPageData & 0xFFFF); // 右ページ
+      } else {
+        // シングルページの場合
+        pagesToPreload.add(currentPageData);
+      }
+    } else {
+      // 単一ページの場合は前後のページをプリロード
+      pagesToPreload.addAll([
+        currentPage - 2,
+        currentPage - 1,
+        currentPage + 1,
+        currentPage + 2,
+      ]);
+    }
+
+    // 重複を削除し、範囲内のページのみをプリロード
+    final uniquePages =
+        pagesToPreload.toSet().toList()
+          ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
+
+    print('プリロードするページ: $uniquePages');
+
+    // 各ページをプリロード
+    for (final page in uniquePages) {
+      _imageLoader.preloadPage(page);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -184,6 +261,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     _currentPage = page;
                   });
                   _navigation?.updateLastReadPage(page);
+
+                  // 隣接ページをプリロード
+                  _preloadAdjacentPages(page);
                 },
                 itemCount:
                     _pageLayout != null && _pageLayout?.useDoublePage == true
