@@ -30,9 +30,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // 各コンポーネント
   late ReaderImageLoader _imageLoader;
-  late ReaderPageLayout _pageLayout;
-  late ReaderNavigation _navigation;
-  late ReaderKeyboardHandler _keyboardHandler;
+  ReaderPageLayout? _pageLayout;
+  ReaderNavigation? _navigation;
+  ReaderKeyboardHandler? _keyboardHandler;
 
   @override
   void initState() {
@@ -72,15 +72,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
         imageLoader: _imageLoader,
       );
 
+      // ページレイアウトを初期化
+      _pageLayout = ReaderPageLayout(
+        book: widget.book,
+        imageLoader: _imageLoader,
+      );
+
       // 画像のアスペクト比を分析して見開きレイアウトを決定
-      await _pageLayout.determinePageLayout(context);
+      await _pageLayout!.determinePageLayout(context);
 
       // ナビゲーションを初期化
       _navigation = ReaderNavigation(
         book: widget.book,
         pageController: _pageController,
-        useDoublePage: _pageLayout.useDoublePage,
-        pageLayout: _pageLayout.pageLayout,
+        useDoublePage: _pageLayout!.useDoublePage,
+        pageLayout: _pageLayout!.pageLayout,
       );
 
       // キーボードハンドラーを初期化
@@ -117,21 +123,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _goToPreviousPage() {
-    _navigation.goToPreviousPage();
+    _navigation?.goToPreviousPage();
   }
 
   // 見開き表示でも1ページだけ戻る（Shift+K/l用）
   void _goToPreviousSinglePage() {
-    _navigation.navigateToRelativePage(-1, _currentPage, _isRightToLeft);
+    _navigation?.navigateToRelativePage(-1, _currentPage, _isRightToLeft);
   }
 
   void _goToNextPage() {
-    _navigation.goToNextPage();
+    _navigation?.goToNextPage();
   }
 
   // 見開き表示でも1ページだけ進む（Shift+J/h用）
   void _goToNextSinglePage() {
-    _navigation.navigateToRelativePage(1, _currentPage, _isRightToLeft);
+    _navigation?.navigateToRelativePage(1, _currentPage, _isRightToLeft);
   }
 
   // ページコントローラーの状態をデバッグ出力
@@ -149,8 +155,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     print(
       'PageController.position.haveDimensions: ${_pageController.position.haveDimensions}',
     );
-    print('_pageLayout.pageLayout: ${_pageLayout.pageLayout}');
-    print('_pageLayout.useDoublePage: ${_pageLayout.useDoublePage}');
+    print('_pageLayout?.pageLayout: ${_pageLayout?.pageLayout}');
+    print('_pageLayout?.useDoublePage: ${_pageLayout?.useDoublePage}');
     print('_isRightToLeft: $_isRightToLeft');
     print('--------------------------------');
   }
@@ -161,7 +167,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: Focus(
         focusNode: _focusNode,
         autofocus: true,
-        onKey: (node, event) => _keyboardHandler.handleKeyEvent(node, event),
+        onKey:
+            (node, event) =>
+                _keyboardHandler?.handleKeyEvent(node, event) ??
+                KeyEventResult.ignored,
         child: GestureDetector(
           onTap: _toggleControls,
           child: Stack(
@@ -174,17 +183,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   setState(() {
                     _currentPage = page;
                   });
-                  _navigation.updateLastReadPage(page);
+                  _navigation?.updateLastReadPage(page);
                 },
                 itemCount:
-                    _pageLayout != null && _pageLayout.useDoublePage
-                        ? _pageLayout.pageLayout.length
+                    _pageLayout != null && _pageLayout?.useDoublePage == true
+                        ? _pageLayout?.pageLayout.length ??
+                            widget.book.totalPages
                         : widget.book.totalPages,
                 itemBuilder: (context, index) {
                   if (widget.book.fileType == 'zip' ||
                       widget.book.fileType == 'cbz') {
                     if (_pageLayout != null) {
-                      return _pageLayout.buildZipPageView(
+                      return _pageLayout!.buildZipPageView(
                         index,
                         _isRightToLeft,
                         context,
@@ -309,8 +319,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 _navigation = ReaderNavigation(
                                   book: widget.book,
                                   pageController: _pageController,
-                                  useDoublePage: _pageLayout.useDoublePage,
-                                  pageLayout: _pageLayout.pageLayout,
+                                  useDoublePage: _pageLayout!.useDoublePage,
+                                  pageLayout: _pageLayout!.pageLayout,
                                 );
                               });
                             } catch (e) {
