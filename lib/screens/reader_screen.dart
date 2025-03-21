@@ -208,13 +208,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
         return Container(
           color: Colors.black,
-          child: Row(
-            children: [
-              // 余白なしでページを並べる
-              Expanded(child: _buildSinglePageView(firstPage)),
-              // 中央の境界線を削除し、ページをぴったりくっつける
-              Expanded(child: _buildSinglePageView(secondPage)),
-            ],
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 余白なしでページを並べる
+                _buildSinglePageView(firstPage),
+                // 中央の境界線を削除し、ページをぴったりくっつける
+                _buildSinglePageView(secondPage),
+              ],
+            ),
           ),
         );
       }
@@ -248,13 +251,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
         // 画像を表示（余白なしでぴったり表示）
         return Container(
           color: Colors.black,
-          child: Center(
-            child: Image.memory(
-              snapshot.data!,
-              fit: BoxFit.contain,
-              // 画像の境界線を削除
-              gaplessPlayback: true,
-            ),
+          constraints:
+              _useDoublePage
+                  ? BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width / 2,
+                  )
+                  : null,
+          child: Image.memory(
+            snapshot.data!,
+            fit: BoxFit.contain,
+            // 画像の境界線を削除
+            gaplessPlayback: true,
           ),
         );
       },
