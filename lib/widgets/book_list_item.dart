@@ -102,12 +102,18 @@ class BookListItem extends StatelessWidget {
                     _showAddTagDialog(context);
                   },
                 ),
-              if (book.lastReadAt != null) ...[
+              if (book.lastReadAt != null || book.totalPages > 0) ...[
                 const Divider(),
-                Text(
-                  '最終閲覧: ${_formatDate(book.lastReadAt!)} (ページ: ${book.lastReadPage + 1})',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
+                if (book.lastReadAt != null)
+                  Text(
+                    '最終閲覧: ${_formatDate(book.lastReadAt!)} (ページ: ${book.lastReadPage + 1}${book.totalPages > 0 ? ' / ${book.totalPages}' : ''})',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                if (book.lastReadAt == null && book.totalPages > 0)
+                  Text(
+                    '総ページ数: ${book.totalPages}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
               ],
             ],
           ),

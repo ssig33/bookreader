@@ -8,6 +8,7 @@ class Book {
   final List<String> tags;
   final bool isRightToLeft; // 右から左へのページめくり方向
   final int lastReadPage;
+  final int totalPages; // 総ページ数
   final DateTime addedAt;
   final DateTime? lastReadAt;
 
@@ -19,6 +20,7 @@ class Book {
     this.tags = const [],
     this.isRightToLeft = true, // 日本の漫画はデフォルトで右から左
     this.lastReadPage = 0,
+    this.totalPages = 0, // デフォルトは0（未取得）
     required this.addedAt,
     this.lastReadAt,
   });
@@ -31,6 +33,7 @@ class Book {
     List<String>? tags,
     bool? isRightToLeft,
     int? lastReadPage,
+    int? totalPages,
     DateTime? addedAt,
     DateTime? lastReadAt,
   }) {
@@ -42,6 +45,7 @@ class Book {
       tags: tags ?? this.tags,
       isRightToLeft: isRightToLeft ?? this.isRightToLeft,
       lastReadPage: lastReadPage ?? this.lastReadPage,
+      totalPages: totalPages ?? this.totalPages,
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
     );
@@ -56,6 +60,7 @@ class Book {
       'tags': tags,
       'isRightToLeft': isRightToLeft,
       'lastReadPage': lastReadPage,
+      'totalPages': totalPages,
       'addedAt': addedAt.millisecondsSinceEpoch,
       'lastReadAt': lastReadAt?.millisecondsSinceEpoch,
     };
@@ -70,6 +75,7 @@ class Book {
       tags: List<String>.from(map['tags']),
       isRightToLeft: map['isRightToLeft'],
       lastReadPage: map['lastReadPage'],
+      totalPages: map['totalPages'] ?? 0, // 古いデータ互換性のため
       addedAt: DateTime.fromMillisecondsSinceEpoch(map['addedAt']),
       lastReadAt:
           map['lastReadAt'] != null

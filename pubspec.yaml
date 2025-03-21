@@ -45,6 +45,11 @@ dependencies:
   shared_preferences: ^2.2.2
   cross_file: ^0.3.4+2
   path_provider: ^2.1.2
+  
+  # ファイル処理
+  pdf: ^3.10.7
+  archive: ^3.4.10
+  syncfusion_flutter_pdf: ^28.2.12
 
 dev_dependencies:
   flutter_test:

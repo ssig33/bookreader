@@ -109,12 +109,22 @@ class BookService {
     // ファイルをアプリの管理領域にコピー
     final managedFilePath = await _fileService.copyFileToAppStorage(filePath);
 
+    // ページ数を取得
+    int totalPages = 0;
+    try {
+      totalPages = await _fileService.getPageCount(managedFilePath, fileType);
+    } catch (e) {
+      print('ページ数取得エラー: $e');
+      // エラーが発生しても処理を続行
+    }
+
     // 新しい本を作成
     final book = Book(
       id: _uuid.v4(),
       title: fileName,
       filePath: managedFilePath, // アプリ管理領域内のパスを保存
       fileType: fileType,
+      totalPages: totalPages,
       addedAt: DateTime.now(),
     );
 
@@ -260,5 +270,49 @@ class BookService {
     await _saveBooksToJson();
 
     return updatedBook;
+  }
+
+  // 総ページ数を更新
+  Future<Book> updateTotalPages(String bookId, int totalPages) async {
+    final index = _books.indexWhere((b) => b.id == bookId);
+    if (index == -1) {
+      throw Exception('Book not found: $bookId');
+    }
+
+    final updatedBook = _books[index].copyWith(totalPages: totalPages);
+    _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
+    return updatedBook;
+  }
+
+  // 既存の本のページ数を取得して更新
+  Future<void> updateAllBooksPageCount() async {
+    if (!_initialized) await initialize();
+
+    for (int i = 0; i < _books.length; i++) {
+      final book = _books[i];
+
+      // ページ数が0の場合のみ更新
+      if (book.totalPages == 0) {
+        try {
+          final totalPages = await _fileService.getPageCount(
+            book.filePath,
+            book.fileType,
+          );
+          if (totalPages > 0) {
+            _books[i] = book.copyWith(totalPages: totalPages);
+          }
+        } catch (e) {
+          print('ページ数更新エラー (${book.title}): $e');
+          // エラーが発生しても処理を続行
+        }
+      }
+    }
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
   }
 }

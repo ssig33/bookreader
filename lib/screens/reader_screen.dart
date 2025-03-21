@@ -117,15 +117,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         tooltip: '戻る',
                       ),
                       Expanded(
-                        child: Text(
-                          widget.book.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.book.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (widget.book.totalPages > 0)
+                              Text(
+                                'ページ: ${_currentPage + 1} / ${widget.book.totalPages}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                       TextButton.icon(
@@ -251,7 +265,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            'ページ ${_currentPage + 1}',
+                            widget.book.totalPages > 0
+                                ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
+                                : 'ページ ${_currentPage + 1}',
                             style: const TextStyle(color: Colors.white),
                           ),
                         ),
