@@ -124,21 +124,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      IconButton(
+                      TextButton.icon(
                         icon: Icon(
                           widget.book.isRightToLeft
                               ? Icons.format_textdirection_r_to_l
                               : Icons.format_textdirection_l_to_r,
                           color: Colors.white,
                         ),
+                        label: Text(
+                          widget.book.isRightToLeft ? '右→左' : '左→右',
+                          style: const TextStyle(color: Colors.white),
+                        ),
                         onPressed: () async {
                           final updatedBook = await _bookService
                               .toggleReadingDirection(widget.book.id);
+                          // 現在のページを保存
+                          final currentPage = _currentPage;
+
+                          // PageControllerを再作成して向きを更新
                           setState(() {
-                            // 本の向きが変わったので、PageViewの向きも更新
+                            _pageController.dispose();
+                            _pageController = PageController(
+                              initialPage: currentPage,
+                            );
                           });
                         },
-                        tooltip: '読み方向を切り替え',
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.blue.withOpacity(0.3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
                       ),
                     ],
                   ),
@@ -151,49 +165,94 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 left: 0,
                 right: 0,
                 bottom: MediaQuery.of(context).padding.bottom + 16,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 前のページボタン
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios,
-                        color: Colors.white,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 5)],
-                      ),
-                      onPressed:
-                          widget.book.isRightToLeft
-                              ? _goToNextPage
-                              : _goToPreviousPage,
-                    ),
-
-                    // ページ番号表示
+                    // ページめくり方向の説明
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                        horizontal: 16,
+                        vertical: 4,
                       ),
+                      margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        'ページ ${_currentPage + 1}',
-                        style: const TextStyle(color: Colors.white),
+                        widget.book.isRightToLeft
+                            ? '← 右から左へめくる →'
+                            : '← 左から右へめくる →',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
 
-                    // 次のページボタン
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward_ios,
-                        color: Colors.white,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 5)],
-                      ),
-                      onPressed:
-                          widget.book.isRightToLeft
-                              ? _goToPreviousPage
-                              : _goToNextPage,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // 前のページボタン
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              widget.book.isRightToLeft
+                                  ? Icons.keyboard_arrow_right
+                                  : Icons.keyboard_arrow_left,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                            onPressed:
+                                widget.book.isRightToLeft
+                                    ? _goToNextPage
+                                    : _goToPreviousPage,
+                            tooltip: '前のページ',
+                          ),
+                        ),
+
+                        // ページ番号表示
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'ページ ${_currentPage + 1}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+
+                        // 次のページボタン
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              widget.book.isRightToLeft
+                                  ? Icons.keyboard_arrow_left
+                                  : Icons.keyboard_arrow_right,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                            onPressed:
+                                widget.book.isRightToLeft
+                                    ? _goToPreviousPage
+                                    : _goToNextPage,
+                            tooltip: '次のページ',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
