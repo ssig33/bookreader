@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
+import '../services/file_service.dart';
 
 class ReaderScreen extends StatefulWidget {
   final Book book;
@@ -13,11 +15,18 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen> {
   final BookService _bookService = BookService();
+  final FileService _fileService = FileService();
   bool _showControls = false;
   int _currentPage = 0;
   late PageController _pageController;
   // 本の読み方向を管理するローカル状態
   late bool _isRightToLeft;
+
+  // ページ画像のキャッシュ
+  List<Uint8List?> _pageImages = [];
+  bool _isLoading = true;
+  bool _useDoublePage = false;
+  List<int> _pageLayout = []; // シングルページまたはダブルページのレイアウト
 
   @override
   void initState() {
@@ -26,6 +35,117 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _isRightToLeft = widget.book.isRightToLeft; // 初期値を設定
     _pageController = PageController(initialPage: _currentPage);
     print('初期化: 読み方向=${_isRightToLeft ? "右から左" : "左から右"}');
+
+    // ZIPファイルの場合は画像を読み込む
+    if (widget.book.fileType == 'zip' || widget.book.fileType == 'cbz') {
+      _loadZipImages();
+    }
+  }
+
+  // ZIPファイルから画像を読み込む
+  Future<void> _loadZipImages() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // ZIPファイルから画像を抽出してキャッシュ
+      final imagePaths = await _fileService.extractAndCacheZipImages(
+        widget.book.filePath,
+      );
+
+      if (imagePaths.isEmpty) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 画像データを読み込む
+      _pageImages = List.filled(imagePaths.length, null);
+
+      // 画像のアスペクト比を分析して見開きレイアウトを決定
+      await _determinePageLayout();
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('ZIP画像読み込みエラー: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 画像のアスペクト比を分析して見開きレイアウトを決定
+  Future<void> _determinePageLayout() async {
+    final totalPages = widget.book.totalPages;
+    _pageLayout = List.generate(totalPages, (index) => index);
+
+    // 画面のアスペクト比を取得
+    final screenSize = MediaQuery.of(context).size;
+    final screenAspect = screenSize.width / screenSize.height;
+
+    // 見開き表示が可能かどうかを判断
+    if (screenAspect >= 1.2) {
+      // 横長の画面の場合
+      List<double?> aspectRatios = [];
+
+      // 最初の10ページ（または全ページ）のアスペクト比を取得
+      final pagesToCheck = totalPages > 10 ? 10 : totalPages;
+      for (int i = 0; i < pagesToCheck; i++) {
+        final imageData = await _fileService.getZipImageData(
+          widget.book.filePath,
+          i,
+        );
+        if (imageData != null) {
+          final aspect = await _fileService.getImageAspectRatio(imageData);
+          aspectRatios.add(aspect);
+        }
+      }
+
+      // アスペクト比の平均を計算
+      double avgAspect = 0;
+      int validCount = 0;
+      for (final aspect in aspectRatios) {
+        if (aspect != null) {
+          avgAspect += aspect;
+          validCount++;
+        }
+      }
+
+      if (validCount > 0) {
+        avgAspect /= validCount;
+
+        // 平均アスペクト比が縦長（0.8未満）の場合、見開き表示を有効にする
+        if (avgAspect < 0.8) {
+          _useDoublePage = true;
+
+          // 見開きページレイアウトを作成
+          _createDoublePageLayout(totalPages);
+        }
+      }
+    }
+  }
+
+  // 見開きページレイアウトを作成
+  void _createDoublePageLayout(int totalPages) {
+    _pageLayout = [];
+
+    // 最初のページは単独表示
+    _pageLayout.add(0);
+
+    // 残りのページを2ページずつグループ化
+    for (int i = 1; i < totalPages; i += 2) {
+      if (i + 1 < totalPages) {
+        // 2ページを組み合わせる
+        _pageLayout.add((i << 16) | (i + 1));
+      } else {
+        // 最後の1ページが余る場合は単独表示
+        _pageLayout.add(i);
+      }
+    }
   }
 
   @override
@@ -62,6 +182,69 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  // ZIPファイルのページを表示するウィジェットを構築
+  Widget _buildZipPageView(int layoutIndex) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_useDoublePage) {
+      // 見開きページの場合
+      final pageData = _pageLayout[layoutIndex];
+
+      if (pageData < 65536) {
+        // シングルページの場合
+        return _buildSinglePageView(pageData);
+      } else {
+        // ダブルページの場合
+        final leftPage = pageData >> 16;
+        final rightPage = pageData & 0xFFFF;
+
+        return Row(
+          children: [
+            Expanded(child: _buildSinglePageView(leftPage)),
+            Expanded(child: _buildSinglePageView(rightPage)),
+          ],
+        );
+      }
+    } else {
+      // 通常の単一ページ表示
+      return _buildSinglePageView(layoutIndex);
+    }
+  }
+
+  // 単一ページを表示するウィジェット
+  Widget _buildSinglePageView(int pageIndex) {
+    return FutureBuilder<Uint8List?>(
+      future: _fileService.getZipImageData(widget.book.filePath, pageIndex),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return Container(
+            color: Colors.white,
+            child: Center(
+              child: Text(
+                'ページ ${pageIndex + 1} の読み込みエラー',
+                style: const TextStyle(fontSize: 16, color: Colors.red),
+              ),
+            ),
+          );
+        }
+
+        // 画像を表示
+        return Container(
+          color: Colors.black,
+          child: Center(
+            child: Image.memory(snapshot.data!, fit: BoxFit.contain),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,17 +262,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 });
                 _updateLastReadPage(page);
               },
+              itemCount:
+                  _useDoublePage ? _pageLayout.length : widget.book.totalPages,
               itemBuilder: (context, index) {
-                // ここでは仮のページ表示
-                return Container(
-                  color: Colors.white,
-                  child: Center(
-                    child: Text(
-                      'ページ ${index + 1}',
-                      style: const TextStyle(fontSize: 24),
+                if (widget.book.fileType == 'zip' ||
+                    widget.book.fileType == 'cbz') {
+                  return _buildZipPageView(index);
+                } else {
+                  // PDFやその他のファイルタイプの場合は仮表示
+                  return Container(
+                    color: Colors.white,
+                    child: Center(
+                      child: Text(
+                        'ページ ${index + 1}',
+                        style: const TextStyle(fontSize: 24),
+                      ),
                     ),
-                  ),
-                );
+                  );
+                }
               },
             ),
 
