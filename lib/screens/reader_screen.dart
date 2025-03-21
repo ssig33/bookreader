@@ -586,17 +586,69 @@ class _ReaderScreenState extends State<ReaderScreen> {
         // h のキーコード
         print('H キーが押されました: 1ページだけ進みます');
         // h: Shift+J と同等（見開きでも1ページだけ進む）
-        _goToNextSinglePage();
+        // _goToNextSinglePage();
+        _testDirectPageNavigation(1); // 直接ページコントローラーを使用してテスト
         return KeyEventResult.handled;
       } else if (keyId == 108 || keyId == 0x0000006C) {
         // l のキーコード
         print('L キーが押されました: 1ページだけ戻ります');
         // l: Shift+K と同等（見開きでも1ページだけ戻る）
-        _goToPreviousSinglePage();
+        // _goToPreviousSinglePage();
+        _testDirectPageNavigation(-1); // 直接ページコントローラーを使用してテスト
+        return KeyEventResult.handled;
+      } else if (keyId == 116 || keyId == 0x00000074) {
+        // t のキーコード (テスト用)
+        print('T キーが押されました: ページコントローラーの状態をテスト');
+        _debugPageController();
         return KeyEventResult.handled;
       }
     }
     return KeyEventResult.ignored;
+  }
+
+  // ページコントローラーの状態をデバッグ出力
+  void _debugPageController() {
+    print('--- PageController デバッグ情報 ---');
+    print('現在のページ: $_currentPage');
+    print('PageController.page: ${_pageController.page}');
+    print('PageController.position.pixels: ${_pageController.position.pixels}');
+    print(
+      'PageController.position.maxScrollExtent: ${_pageController.position.maxScrollExtent}',
+    );
+    print(
+      'PageController.position.viewportDimension: ${_pageController.position.viewportDimension}',
+    );
+    print(
+      'PageController.position.haveDimensions: ${_pageController.position.haveDimensions}',
+    );
+    print('_pageLayout: $_pageLayout');
+    print('_useDoublePage: $_useDoublePage');
+    print('_isRightToLeft: $_isRightToLeft');
+    print('--------------------------------');
+  }
+
+  // 直接ページコントローラーを使用してページ移動をテスト
+  void _testDirectPageNavigation(int direction) {
+    try {
+      print('直接ページコントローラーを使用してページ移動をテスト: 方向=$direction');
+      print('現在のページ: $_currentPage');
+
+      // 現在のページから1ページ進む/戻る
+      final targetPage = _currentPage + direction;
+      print('目標ページ: $targetPage');
+
+      if (targetPage >= 0 &&
+          targetPage <
+              (_useDoublePage ? _pageLayout.length : widget.book.totalPages)) {
+        print('_pageController.jumpToPage($targetPage) を呼び出します');
+        _pageController.jumpToPage(targetPage);
+        print('ページ移動完了');
+      } else {
+        print('目標ページが範囲外です');
+      }
+    } catch (e) {
+      print('ページ移動中にエラーが発生しました: $e');
+    }
   }
 
   @override
