@@ -137,9 +137,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageLayout.add(0);
 
     // 残りのページを2ページずつグループ化
+    // 右から左への読み方向の場合は、偶数ページが左、奇数ページが右になるように組み合わせる
     for (int i = 1; i < totalPages; i += 2) {
       if (i + 1 < totalPages) {
         // 2ページを組み合わせる
+        // 右から左の場合は順序を入れ替える必要はない（表示時に対応）
         _pageLayout.add((i << 16) | (i + 1));
       } else {
         // 最後の1ページが余る場合は単独表示
@@ -200,11 +202,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final leftPage = pageData >> 16;
         final rightPage = pageData & 0xFFFF;
 
-        return Row(
-          children: [
-            Expanded(child: _buildSinglePageView(leftPage)),
-            Expanded(child: _buildSinglePageView(rightPage)),
-          ],
+        // 読み方向に応じてページの順序を決定
+        final firstPage = _isRightToLeft ? rightPage : leftPage;
+        final secondPage = _isRightToLeft ? leftPage : rightPage;
+
+        return Container(
+          color: Colors.black,
+          child: Row(
+            children: [
+              // 余白なしでページを並べる
+              Expanded(child: _buildSinglePageView(firstPage)),
+              // 中央の境界線を削除し、ページをぴったりくっつける
+              Expanded(child: _buildSinglePageView(secondPage)),
+            ],
+          ),
         );
       }
     } else {
@@ -224,7 +235,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
         if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
           return Container(
-            color: Colors.white,
+            color: Colors.black,
             child: Center(
               child: Text(
                 'ページ ${pageIndex + 1} の読み込みエラー',
@@ -234,11 +245,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
           );
         }
 
-        // 画像を表示
+        // 画像を表示（余白なしでぴったり表示）
         return Container(
           color: Colors.black,
           child: Center(
-            child: Image.memory(snapshot.data!, fit: BoxFit.contain),
+            child: Image.memory(
+              snapshot.data!,
+              fit: BoxFit.contain,
+              // 画像の境界線を削除
+              gaplessPlayback: true,
+            ),
           ),
         );
       },
