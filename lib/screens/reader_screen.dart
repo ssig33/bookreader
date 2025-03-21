@@ -381,12 +381,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // Shift+J: 見開きでも1ページだけ進む
           _goToNextSinglePage();
         } else {
-          // j: 次のページへ
-          if (_isRightToLeft) {
-            _goToPreviousPage();
-          } else {
-            _goToNextPage();
-          }
+          // j: 常に次のページへ（読み方向に関係なく）
+          _goToNextPage();
         }
         return KeyEventResult.handled;
       } else if (event.logicalKey == LogicalKeyboardKey.keyK) {
@@ -394,12 +390,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // Shift+K: 見開きでも1ページだけ戻る
           _goToPreviousSinglePage();
         } else {
-          // k: 前のページへ
-          if (_isRightToLeft) {
-            _goToNextPage();
-          } else {
-            _goToPreviousPage();
-          }
+          // k: 常に前のページへ（読み方向に関係なく）
+          _goToPreviousPage();
         }
         return KeyEventResult.handled;
       }
