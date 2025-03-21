@@ -1,16 +1,17 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'package:path/path.dart' as path;
 import 'package:uuid/uuid.dart';
 import '../models/book.dart';
 import 'file_service.dart';
 
 class BookService {
-  // 本来はデータベースやファイルに保存するが、簡易的にメモリ内リストで管理
   List<Book> _books = [];
   final _uuid = Uuid();
   final _fileService = FileService();
   bool _initialized = false;
+  late String _booksJsonPath;
 
   // シングルトンパターン
   static final BookService _instance = BookService._internal();
@@ -26,7 +27,46 @@ class BookService {
     if (_initialized) return;
 
     await _fileService.initialize();
+
+    // JSONファイルのパスを設定
+    final appDir = await _fileService.getAppStoragePath();
+    _booksJsonPath = path.join(appDir, 'books.json');
+
+    // JSONファイルが存在する場合は読み込む
+    await _loadBooksFromJson();
+
     _initialized = true;
+  }
+
+  // JSONファイルから本の情報を読み込む
+  Future<void> _loadBooksFromJson() async {
+    final file = File(_booksJsonPath);
+    if (await file.exists()) {
+      try {
+        final jsonString = await file.readAsString();
+        final List<dynamic> jsonList = json.decode(jsonString);
+        _books = jsonList.map((json) => Book.fromMap(json)).toList();
+      } catch (e) {
+        print('JSONファイルの読み込みエラー: $e');
+        // エラーが発生した場合は空のリストで初期化
+        _books = [];
+      }
+    }
+  }
+
+  // 本の情報をJSONファイルに保存
+  Future<void> _saveBooksToJson() async {
+    if (!_initialized) await initialize();
+
+    final file = File(_booksJsonPath);
+    final jsonList = _books.map((book) => book.toMap()).toList();
+    final jsonString = json.encode(jsonList);
+
+    try {
+      await file.writeAsString(jsonString);
+    } catch (e) {
+      print('JSONファイルの保存エラー: $e');
+    }
   }
 
   // 全ての本を取得
@@ -81,17 +121,24 @@ class BookService {
     // リストに追加
     _books.add(book);
 
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return book;
   }
 
   // 本を更新
-  Book updateBook(Book book) {
+  Future<Book> updateBook(Book book) async {
     final index = _books.indexWhere((b) => b.id == book.id);
     if (index == -1) {
       throw Exception('Book not found: ${book.id}');
     }
 
     _books[index] = book;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return book;
   }
 
@@ -113,11 +160,14 @@ class BookService {
 
       // リストから削除
       _books.removeAt(bookIndex);
+
+      // JSONファイルに保存
+      await _saveBooksToJson();
     }
   }
 
   // 本の名前を変更
-  Book renameBook(String id, String newTitle) {
+  Future<Book> renameBook(String id, String newTitle) async {
     final index = _books.indexWhere((b) => b.id == id);
     if (index == -1) {
       throw Exception('Book not found: $id');
@@ -125,11 +175,15 @@ class BookService {
 
     final updatedBook = _books[index].copyWith(title: newTitle);
     _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return updatedBook;
   }
 
   // タグを追加
-  Book addTag(String bookId, String tag) {
+  Future<Book> addTag(String bookId, String tag) async {
     final index = _books.indexWhere((b) => b.id == bookId);
     if (index == -1) {
       throw Exception('Book not found: $bookId');
@@ -143,11 +197,15 @@ class BookService {
     final updatedTags = List<String>.from(book.tags)..add(tag);
     final updatedBook = book.copyWith(tags: updatedTags);
     _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return updatedBook;
   }
 
   // タグを削除
-  Book removeTag(String bookId, String tag) {
+  Future<Book> removeTag(String bookId, String tag) async {
     final index = _books.indexWhere((b) => b.id == bookId);
     if (index == -1) {
       throw Exception('Book not found: $bookId');
@@ -161,11 +219,15 @@ class BookService {
     final updatedTags = List<String>.from(book.tags)..remove(tag);
     final updatedBook = book.copyWith(tags: updatedTags);
     _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return updatedBook;
   }
 
   // 最後に読んだページを更新
-  Book updateLastReadPage(String bookId, int pageNumber) {
+  Future<Book> updateLastReadPage(String bookId, int pageNumber) async {
     final index = _books.indexWhere((b) => b.id == bookId);
     if (index == -1) {
       throw Exception('Book not found: $bookId');
@@ -176,11 +238,15 @@ class BookService {
       lastReadAt: DateTime.now(),
     );
     _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return updatedBook;
   }
 
   // ページめくり方向を変更
-  Book toggleReadingDirection(String bookId) {
+  Future<Book> toggleReadingDirection(String bookId) async {
     final index = _books.indexWhere((b) => b.id == bookId);
     if (index == -1) {
       throw Exception('Book not found: $bookId');
@@ -189,6 +255,10 @@ class BookService {
     final book = _books[index];
     final updatedBook = book.copyWith(isRightToLeft: !book.isRightToLeft);
     _books[index] = updatedBook;
+
+    // JSONファイルに保存
+    await _saveBooksToJson();
+
     return updatedBook;
   }
 }
