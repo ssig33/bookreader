@@ -200,24 +200,103 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _navigateToRelativePage(1);
   }
 
-  // 相対的なページ移動を行う
+  // 相対的なページ移動を行う（見開き表示でも1ページだけ移動）
   void _navigateToRelativePage(int direction) {
     try {
       print('相対的なページ移動: 方向=$direction');
       print('現在のページ: $_currentPage');
 
-      // 現在のページから指定方向に移動
-      final targetPage = _currentPage + direction;
-      print('目標ページ: $targetPage');
+      if (_useDoublePage) {
+        // 見開き表示の場合
+        final currentLayoutIndex = _currentPage;
 
-      if (targetPage >= 0 &&
-          targetPage <
-              (_useDoublePage ? _pageLayout.length : widget.book.totalPages)) {
-        print('_pageController.jumpToPage($targetPage) を呼び出します');
-        _pageController.jumpToPage(targetPage);
-        print('ページ移動完了');
+        if (currentLayoutIndex >= _pageLayout.length) {
+          print(
+            'エラー: currentLayoutIndex($_currentPage)が_pageLayout(${_pageLayout.length})の範囲外です',
+          );
+          return;
+        }
+
+        final currentPageData = _pageLayout[currentLayoutIndex];
+        print('現在のページデータ: $currentPageData');
+
+        // 現在表示中の実際のページ番号を取得
+        List<int> currentPages = [];
+        if (currentPageData < 65536) {
+          // シングルページの場合
+          currentPages.add(currentPageData);
+          print('現在シングルページ表示: ページ番号 $currentPageData');
+        } else {
+          // ダブルページの場合
+          final leftPage = currentPageData >> 16;
+          final rightPage = currentPageData & 0xFFFF;
+          currentPages.add(leftPage);
+          currentPages.add(rightPage);
+          print('現在ダブルページ表示: 左ページ $leftPage, 右ページ $rightPage');
+        }
+
+        // 移動先のページ番号を計算
+        int targetRealPage;
+        if (direction > 0) {
+          // 次のページへ
+          targetRealPage = currentPages.last + 1;
+          print('次のページへ: $targetRealPage');
+        } else {
+          // 前のページへ
+          targetRealPage = currentPages.first - 1;
+          print('前のページへ: $targetRealPage');
+        }
+
+        // ページ範囲チェック
+        if (targetRealPage < 0 || targetRealPage >= widget.book.totalPages) {
+          print('目標ページが範囲外です: $targetRealPage');
+          return;
+        }
+
+        // 目標ページを含むレイアウトインデックスを探す
+        for (int i = 0; i < _pageLayout.length; i++) {
+          final layoutData = _pageLayout[i];
+          print('インデックス $i のレイアウトデータ: $layoutData');
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (layoutData == targetRealPage) {
+              print('目標ページが見つかりました: インデックス $i, ページ $targetRealPage');
+              print('_pageController.jumpToPage($i) を呼び出します');
+              _pageController.jumpToPage(i);
+              print('ページ移動完了');
+              return;
+            }
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (leftPage == targetRealPage || rightPage == targetRealPage) {
+              print(
+                '目標ページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
+              );
+              print('_pageController.jumpToPage($i) を呼び出します');
+              _pageController.jumpToPage(i);
+              print('ページ移動完了');
+              return;
+            }
+          }
+        }
+
+        print('目標ページに対応するレイアウトが見つかりませんでした: $targetRealPage');
       } else {
-        print('目標ページが範囲外です');
+        // 通常の単一ページ表示の場合は単純に移動
+        final targetPage = _currentPage + direction;
+        print('目標ページ: $targetPage');
+
+        if (targetPage >= 0 && targetPage < widget.book.totalPages) {
+          print('_pageController.jumpToPage($targetPage) を呼び出します');
+          _pageController.jumpToPage(targetPage);
+          print('ページ移動完了');
+        } else {
+          print('目標ページが範囲外です');
+        }
       }
     } catch (e) {
       print('ページ移動中にエラーが発生しました: $e');
