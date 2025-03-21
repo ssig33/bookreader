@@ -394,6 +394,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
           _goToPreviousPage();
         }
         return KeyEventResult.handled;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyH) {
+        // h: Shift+J と同等（見開きでも1ページだけ進む）
+        _goToNextSinglePage();
+        return KeyEventResult.handled;
+      } else if (event.logicalKey == LogicalKeyboardKey.keyL) {
+        // l: Shift+K と同等（見開きでも1ページだけ戻る）
+        _goToPreviousSinglePage();
+        return KeyEventResult.handled;
       }
     }
     return KeyEventResult.ignored;
