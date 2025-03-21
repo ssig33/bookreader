@@ -8,8 +8,6 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart'; // For decodeImageFromList
-import '../utils/logger.dart';
-import '../utils/image_cache_manager.dart';
 
 class FileService {
   static final FileService _instance = FileService._internal();
@@ -18,12 +16,8 @@ class FileService {
   late Directory _cacheDir;
   bool _initialized = false;
 
-  // キャッシュ管理
-  final Map<String, List<String>> _zipImageCache = {}; // ファイルパスとキャッシュパスのマッピング
-  final ImageCacheManager _imageCache = ImageCacheManager(
-    maxSize: 200, // 最大200枚の画像をキャッシュ
-    maxSizeInBytes: 200 * 1024 * 1024, // 最大200MB
-  );
+  // キャッシュ管理用のマップ
+  final Map<String, List<String>> _zipImageCache = {};
 
   // シングルトンパターン
   factory FileService() {
@@ -350,52 +344,26 @@ class FileService {
     if (!_initialized) await initialize();
 
     try {
-      // キャッシュキーを生成
-      final cacheKey = '${filePath}_$pageIndex';
-
-      // まずメモリキャッシュをチェック
-      final cachedImage = _imageCache.getFromCache(cacheKey);
-      if (cachedImage != null) {
-        Logger.debug('メモリキャッシュヒット: $cacheKey', tag: 'FileService');
-        return cachedImage;
-      }
-
-      // メモリキャッシュになければ、ファイルキャッシュをチェック
       // まだキャッシュされていない場合は抽出
       if (!_zipImageCache.containsKey(filePath)) {
-        Logger.debug('ファイルキャッシュなし、抽出開始: $filePath', tag: 'FileService');
         await extractAndCacheZipImages(filePath);
       }
 
       // キャッシュから画像パスを取得
       final imagePaths = _zipImageCache[filePath];
       if (imagePaths == null || pageIndex >= imagePaths.length) {
-        Logger.warning(
-          '画像パスが見つかりません: $filePath, ページ $pageIndex',
-          tag: 'FileService',
-        );
         return null;
       }
 
       // 画像データを読み込む
       final imageFile = File(imagePaths[pageIndex]);
       if (await imageFile.exists()) {
-        final imageData = await imageFile.readAsBytes();
-
-        // メモリキャッシュに追加
-        _imageCache.addToCache(cacheKey, imageData);
-        Logger.debug('メモリキャッシュに追加: $cacheKey', tag: 'FileService');
-
-        return imageData;
+        return await imageFile.readAsBytes();
       }
 
-      Logger.warning(
-        '画像ファイルが存在しません: ${imagePaths[pageIndex]}',
-        tag: 'FileService',
-      );
       return null;
     } catch (e) {
-      Logger.error('ZIP画像取得エラー', tag: 'FileService', error: e);
+      print('ZIP画像取得エラー: $e');
       return null;
     }
   }
@@ -404,14 +372,9 @@ class FileService {
   Future<double?> getImageAspectRatio(Uint8List imageData) async {
     try {
       final decodedImage = await decodeImageFromList(imageData);
-      final aspectRatio = decodedImage.width / decodedImage.height;
-      Logger.debug(
-        '画像アスペクト比: $aspectRatio (${decodedImage.width}x${decodedImage.height})',
-        tag: 'FileService',
-      );
-      return aspectRatio;
+      return decodedImage.width / decodedImage.height;
     } catch (e) {
-      Logger.error('画像アスペクト比取得エラー', tag: 'FileService', error: e);
+      print('画像アスペクト比取得エラー: $e');
       return null;
     }
   }
@@ -421,14 +384,8 @@ class FileService {
     if (!_initialized) await initialize();
 
     try {
-      // ファイルパスマッピングをクリア
       _zipImageCache.clear();
 
-      // メモリキャッシュをクリア
-      _imageCache.clearCache();
-      Logger.info('メモリキャッシュをクリアしました', tag: 'FileService');
-
-      // ディスクキャッシュをクリア
       if (await _cacheDir.exists()) {
         final entities = await _cacheDir.list().toList();
         for (var entity in entities) {
@@ -438,13 +395,9 @@ class FileService {
             await entity.delete();
           }
         }
-        Logger.info('ディスクキャッシュをクリアしました', tag: 'FileService');
       }
-
-      // キャッシュ統計を出力
-      _imageCache.logStats();
     } catch (e) {
-      Logger.error('キャッシュクリアエラー', tag: 'FileService', error: e);
+      print('キャッシュクリアエラー: $e');
     }
   }
 
@@ -453,25 +406,17 @@ class FileService {
     if (!_initialized) await initialize();
 
     try {
-      // ファイルパスマッピングから削除
       _zipImageCache.remove(filePath);
 
-      // メモリキャッシュから該当する画像を削除
-      final String prefix = '${filePath}_';
-      // 注: 現在のImageCacheManagerの実装では特定のプレフィックスを持つキーをすべて削除する
-      // メソッドがないため、将来的に拡張が必要かもしれません
-
-      // ディスクキャッシュから削除
       final String bookId = path.basenameWithoutExtension(filePath);
       final String cacheDirPath = path.join(_cacheDir.path, bookId);
       final cacheDir = Directory(cacheDirPath);
 
       if (await cacheDir.exists()) {
         await cacheDir.delete(recursive: true);
-        Logger.info('本のディスクキャッシュをクリアしました: $filePath', tag: 'FileService');
       }
     } catch (e) {
-      Logger.error('本キャッシュクリアエラー', tag: 'FileService', error: e);
+      print('本キャッシュクリアエラー: $e');
     }
   }
 
