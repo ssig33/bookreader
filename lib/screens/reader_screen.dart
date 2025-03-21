@@ -303,17 +303,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
         print('目標ページ構成: $targetPages');
 
         // 目標ページ構成に対応するレイアウトインデックスを探す
+        int targetIndex = -1;
+
+        // まず既存のレイアウトから探す
         for (int i = 0; i < _pageLayout.length; i++) {
           final layoutData = _pageLayout[i];
 
           if (layoutData < 65536) {
             // シングルページの場合
             if (targetPages.length == 1 && layoutData == targetPages[0]) {
+              targetIndex = i;
               print('目標ページが見つかりました: インデックス $i, ページ ${targetPages[0]}');
-              print('_pageController.jumpToPage($i) を呼び出します');
-              _pageController.jumpToPage(i);
-              print('ページ移動完了');
-              return;
+              break;
             }
           } else {
             // ダブルページの場合
@@ -323,18 +324,92 @@ class _ReaderScreenState extends State<ReaderScreen> {
             if (targetPages.length == 2 &&
                 leftPage == targetPages[0] &&
                 rightPage == targetPages[1]) {
+              targetIndex = i;
               print(
                 '目標ページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
               );
-              print('_pageController.jumpToPage($i) を呼び出します');
-              _pageController.jumpToPage(i);
-              print('ページ移動完了');
-              return;
+              break;
             }
           }
         }
 
-        print('目標ページ構成に対応するレイアウトが見つかりませんでした: $targetPages');
+        // 既存のレイアウトに見つからない場合は、最も近いページを探す
+        if (targetIndex == -1) {
+          print('目標ページ構成に対応する既存のレイアウトが見つかりませんでした: $targetPages');
+
+          // 単一ページの場合
+          if (targetPages.length == 1) {
+            final targetPage = targetPages[0];
+
+            // 最も近いページを含むレイアウトを探す
+            int closestDistance = widget.book.totalPages;
+
+            for (int i = 0; i < _pageLayout.length; i++) {
+              final layoutData = _pageLayout[i];
+
+              if (layoutData < 65536) {
+                // シングルページの場合
+                final distance = (layoutData - targetPage).abs();
+                if (distance < closestDistance) {
+                  closestDistance = distance;
+                  targetIndex = i;
+                }
+              } else {
+                // ダブルページの場合
+                final leftPage = layoutData >> 16;
+                final rightPage = layoutData & 0xFFFF;
+
+                final distanceLeft = (leftPage - targetPage).abs();
+                final distanceRight = (rightPage - targetPage).abs();
+                final minDistance =
+                    distanceLeft < distanceRight ? distanceLeft : distanceRight;
+
+                if (minDistance < closestDistance) {
+                  closestDistance = minDistance;
+                  targetIndex = i;
+                }
+              }
+            }
+          } else if (targetPages.length == 2) {
+            // ダブルページの場合
+            final targetLeftPage = targetPages[0];
+            final targetRightPage = targetPages[1];
+
+            // 最も近いページを含むレイアウトを探す
+            int closestDistance = widget.book.totalPages * 2;
+
+            for (int i = 0; i < _pageLayout.length; i++) {
+              final layoutData = _pageLayout[i];
+
+              if (layoutData >= 65536) {
+                // ダブルページの場合のみ比較
+                final leftPage = layoutData >> 16;
+                final rightPage = layoutData & 0xFFFF;
+
+                final distanceLeft = (leftPage - targetLeftPage).abs();
+                final distanceRight = (rightPage - targetRightPage).abs();
+                final totalDistance = distanceLeft + distanceRight;
+
+                if (totalDistance < closestDistance) {
+                  closestDistance = totalDistance;
+                  targetIndex = i;
+                }
+              }
+            }
+          }
+
+          if (targetIndex != -1) {
+            print('最も近いページを含むレイアウトが見つかりました: インデックス $targetIndex');
+          } else {
+            print('適切なレイアウトが見つかりませんでした');
+            return;
+          }
+        }
+
+        // 見つかったインデックスに移動
+        print('_pageController.jumpToPage($targetIndex) を呼び出します');
+        _pageController.jumpToPage(targetIndex);
+        print('ページ移動完了');
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         final targetPage = _currentPage + direction;
