@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../services/file_service.dart';
+import '../utils/logger.dart';
+import '../utils/page_layout_manager.dart';
+import '../utils/keyboard_navigation_manager.dart';
 
 class ReaderScreen extends StatefulWidget {
   final Book book;
@@ -15,12 +18,22 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
+  // サービス
   final BookService _bookService = BookService();
   final FileService _fileService = FileService();
+
+  // ユーティリティマネージャー
+  late PageLayoutManager _layoutManager;
+  final KeyboardNavigationManager _keyboardManager =
+      KeyboardNavigationManager();
+
+  // UI状態
   bool _showControls = false;
+  bool _isLoading = true;
+
+  // ページ関連
   int _currentPage = 0;
   late PageController _pageController;
-  // 本の読み方向を管理するローカル状態
   late bool _isRightToLeft;
 
   // キーボードフォーカス用
@@ -28,17 +41,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ページ画像のキャッシュ
   List<Uint8List?> _pageImages = [];
-  bool _isLoading = true;
-  bool _useDoublePage = false;
-  List<int> _pageLayout = []; // シングルページまたはダブルページのレイアウト
 
   @override
   void initState() {
     super.initState();
+
+    // 初期設定
     _currentPage = widget.book.lastReadPage;
-    _isRightToLeft = widget.book.isRightToLeft; // 初期値を設定
+    _isRightToLeft = widget.book.isRightToLeft;
     _pageController = PageController(initialPage: _currentPage);
-    print('初期化: 読み方向=${_isRightToLeft ? "右から左" : "左から右"}');
+
+    // ページレイアウトマネージャーの初期化
+    _layoutManager = PageLayoutManager(
+      _fileService,
+      widget.book.filePath,
+      widget.book.totalPages,
+    );
+
+    Logger.debug(
+      '初期化: 読み方向=${_isRightToLeft ? "右から左" : "左から右"}',
+      tag: 'ReaderScreen',
+    );
 
     // ZIPファイルの場合は画像を読み込む
     if (widget.book.fileType == 'zip' || widget.book.fileType == 'cbz') {
@@ -64,6 +87,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
 
       if (imagePaths.isEmpty) {
+        Logger.warning('ZIPファイルに画像が見つかりませんでした', tag: 'ReaderScreen');
         setState(() {
           _isLoading = false;
         });
@@ -74,88 +98,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _pageImages = List.filled(imagePaths.length, null);
 
       // 画像のアスペクト比を分析して見開きレイアウトを決定
-      await _determinePageLayout();
+      await _layoutManager.determinePageLayout(context);
 
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      print('ZIP画像読み込みエラー: $e');
+      Logger.error('ZIP画像読み込みエラー', tag: 'ReaderScreen', error: e);
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  // 画像のアスペクト比を分析して見開きレイアウトを決定
-  Future<void> _determinePageLayout() async {
-    final totalPages = widget.book.totalPages;
-    _pageLayout = List.generate(totalPages, (index) => index);
-
-    // 画面のアスペクト比を取得
-    final screenSize = MediaQuery.of(context).size;
-    final screenAspect = screenSize.width / screenSize.height;
-
-    // 見開き表示が可能かどうかを判断
-    if (screenAspect >= 1.2) {
-      // 横長の画面の場合
-      List<double?> aspectRatios = [];
-
-      // 最初の10ページ（または全ページ）のアスペクト比を取得
-      final pagesToCheck = totalPages > 10 ? 10 : totalPages;
-      for (int i = 0; i < pagesToCheck; i++) {
-        final imageData = await _fileService.getZipImageData(
-          widget.book.filePath,
-          i,
-        );
-        if (imageData != null) {
-          final aspect = await _fileService.getImageAspectRatio(imageData);
-          aspectRatios.add(aspect);
-        }
-      }
-
-      // アスペクト比の平均を計算
-      double avgAspect = 0;
-      int validCount = 0;
-      for (final aspect in aspectRatios) {
-        if (aspect != null) {
-          avgAspect += aspect;
-          validCount++;
-        }
-      }
-
-      if (validCount > 0) {
-        avgAspect /= validCount;
-
-        // 平均アスペクト比が縦長（0.8未満）の場合、見開き表示を有効にする
-        if (avgAspect < 0.8) {
-          _useDoublePage = true;
-
-          // 見開きページレイアウトを作成
-          _createDoublePageLayout(totalPages);
-        }
-      }
-    }
-  }
-
-  // 見開きページレイアウトを作成
-  void _createDoublePageLayout(int totalPages) {
-    _pageLayout = [];
-
-    // 最初のページは単独表示
-    _pageLayout.add(0);
-
-    // 残りのページを2ページずつグループ化
-    // 右から左への読み方向の場合は、偶数ページが左、奇数ページが右になるように組み合わせる
-    for (int i = 1; i < totalPages; i += 2) {
-      if (i + 1 < totalPages) {
-        // 2ページを組み合わせる
-        // 右から左の場合は順序を入れ替える必要はない（表示時に対応）
-        _pageLayout.add((i << 16) | (i + 1));
-      } else {
-        // 最後の1ページが余る場合は単独表示
-        _pageLayout.add(i);
-      }
     }
   }
 
@@ -203,37 +155,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // 相対的なページ移動を行う（見開き表示でも1ページだけ移動）
   void _navigateToRelativePage(int direction) {
     try {
-      print('相対的なページ移動: 方向=$direction');
-      print('現在のページ: $_currentPage');
+      Logger.debug('相対的なページ移動: 方向=$direction', tag: 'ReaderScreen');
+      Logger.debug('現在のページ: $_currentPage', tag: 'ReaderScreen');
 
-      if (_useDoublePage) {
+      if (_layoutManager.useDoublePage) {
         // 見開き表示の場合
         final currentLayoutIndex = _currentPage;
 
-        if (currentLayoutIndex >= _pageLayout.length) {
-          print(
-            'エラー: currentLayoutIndex($_currentPage)が_pageLayout(${_pageLayout.length})の範囲外です',
+        if (currentLayoutIndex >= _layoutManager.pageLayout.length) {
+          Logger.error(
+            'レイアウトインデックスが範囲外です: $_currentPage / ${_layoutManager.pageLayout.length}',
+            tag: 'ReaderScreen',
           );
           return;
         }
 
-        final currentPageData = _pageLayout[currentLayoutIndex];
-        print('現在のページデータ: $currentPageData');
-
         // 現在表示中の実際のページ番号を取得
-        List<int> currentPages = [];
-        if (currentPageData < 65536) {
-          // シングルページの場合
-          currentPages.add(currentPageData);
-          print('現在シングルページ表示: ページ番号 $currentPageData');
-        } else {
-          // ダブルページの場合
-          final leftPage = currentPageData >> 16;
-          final rightPage = currentPageData & 0xFFFF;
-          currentPages.add(leftPage);
-          currentPages.add(rightPage);
-          print('現在ダブルページ表示: 左ページ $leftPage, 右ページ $rightPage');
+        final currentPages = _layoutManager.getPagesForLayout(
+          currentLayoutIndex,
+        );
+        if (currentPages.isEmpty) {
+          Logger.error('現在のページ情報を取得できませんでした', tag: 'ReaderScreen');
+          return;
         }
+
+        Logger.debug('現在のページ構成: $currentPages', tag: 'ReaderScreen');
 
         // 移動先のページ構成を計算
         List<int> targetPages = [];
@@ -297,103 +243,80 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
 
         if (targetPages.isEmpty) {
-          print('移動先のページがありません');
+          Logger.warning('移動先のページがありません', tag: 'ReaderScreen');
           return;
         }
 
-        print('目標ページ構成: $targetPages');
+        Logger.debug('目標ページ構成: $targetPages', tag: 'ReaderScreen');
 
         // 目標ページ構成に対応するレイアウトインデックスを探す
-        int targetIndex = -1;
+        int targetIndex = _layoutManager.findLayoutIndexForPages(targetPages);
 
-        // まず既存のレイアウトから探す
-        for (int i = 0; i < _pageLayout.length; i++) {
-          final layoutData = _pageLayout[i];
-
-          if (layoutData < 65536) {
-            // シングルページの場合
-            if (targetPages.length == 1 && layoutData == targetPages[0]) {
-              targetIndex = i;
-              print('目標ページが見つかりました: インデックス $i, ページ ${targetPages[0]}');
-              break;
-            }
-          } else {
-            // ダブルページの場合
-            final leftPage = layoutData >> 16;
-            final rightPage = layoutData & 0xFFFF;
-
-            if (targetPages.length == 2 &&
-                leftPage == targetPages[0] &&
-                rightPage == targetPages[1]) {
-              targetIndex = i;
-              print(
-                '目標ページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
-              );
-              break;
-            }
-          }
-        }
-
-        // 既存のレイアウトに見つからない場合は、直接ページを表示する
+        // 既存のレイアウトに見つからない場合は、新しいレイアウトを作成
         if (targetIndex == -1) {
-          print('目標ページ構成に対応する既存のレイアウトが見つかりませんでした: $targetPages');
+          Logger.debug(
+            '既存のレイアウトに見つかりませんでした: $targetPages',
+            tag: 'ReaderScreen',
+          );
 
-          // 単一ページの場合
           if (targetPages.length == 1) {
+            // 単一ページの場合
             final targetPage = targetPages[0];
-
-            // 単一ページを直接表示
-            print('単一ページを直接表示します: $targetPage');
-
-            // 単一ページ表示モードに切り替え
-            setState(() {
-              _useDoublePage = false;
-            });
+            Logger.debug('単一ページを直接表示します: $targetPage', tag: 'ReaderScreen');
 
             // ページに直接ジャンプ
             _pageController.jumpToPage(targetPage);
-            print('ページ移動完了');
+            Logger.debug('ページ移動完了', tag: 'ReaderScreen');
             return;
           } else if (targetPages.length == 2) {
             // ダブルページの場合
-            final targetLeftPage = targetPages[0];
-            final targetRightPage = targetPages[1];
+            Logger.debug(
+              'ダブルページを直接表示します: ${targetPages[0]}と${targetPages[1]}',
+              tag: 'ReaderScreen',
+            );
 
-            print('ダブルページを直接表示します: 左=$targetLeftPage, 右=$targetRightPage');
+            // 新しいレイアウトを追加
+            targetIndex = _layoutManager.addCustomLayout(targetPages);
+            if (targetIndex == -1) {
+              Logger.error('新しいレイアウトの作成に失敗しました', tag: 'ReaderScreen');
+              return;
+            }
 
-            // 新しいレイアウトデータを作成
-            final newLayoutData = (targetLeftPage << 16) | targetRightPage;
-
-            // レイアウトに追加
-            _pageLayout.add(newLayoutData);
-            targetIndex = _pageLayout.length - 1;
-
-            print('新しいレイアウトを作成しました: インデックス $targetIndex, データ $newLayoutData');
+            Logger.debug(
+              '新しいレイアウトを作成しました: インデックス $targetIndex',
+              tag: 'ReaderScreen',
+            );
           } else {
-            print('適切なレイアウトが見つかりませんでした');
+            Logger.error('適切なレイアウトが見つかりませんでした', tag: 'ReaderScreen');
             return;
           }
         }
 
         // 見つかったインデックスに移動
-        print('_pageController.jumpToPage($targetIndex) を呼び出します');
+        Logger.debug(
+          '_pageController.jumpToPage($targetIndex) を呼び出します',
+          tag: 'ReaderScreen',
+        );
         _pageController.jumpToPage(targetIndex);
-        print('ページ移動完了');
+        Logger.debug('ページ移動完了', tag: 'ReaderScreen');
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         final targetPage = _currentPage + direction;
-        print('目標ページ: $targetPage');
+        Logger.debug('目標ページ: $targetPage', tag: 'ReaderScreen');
 
         if (targetPage >= 0 && targetPage < widget.book.totalPages) {
-          print('_pageController.jumpToPage($targetPage) を呼び出します');
+          Logger.debug(
+            '_pageController.jumpToPage($targetPage) を呼び出します',
+            tag: 'ReaderScreen',
+          );
           _pageController.jumpToPage(targetPage);
-          print('ページ移動完了');
+          Logger.debug('ページ移動完了', tag: 'ReaderScreen');
         } else {
-          print('目標ページが範囲外です');
+          Logger.warning('目標ページが範囲外です: $targetPage', tag: 'ReaderScreen');
         }
       }
     } catch (e) {
-      print('ページ移動中にエラーが発生しました: $e');
+      Logger.error('ページ移動中にエラーが発生しました', tag: 'ReaderScreen', error: e);
     }
   }
 
@@ -406,20 +329,49 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // ZIPファイルのページを表示するウィジェットを構築
   Widget _buildZipPageView(int layoutIndex) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 4,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              '画像を読み込み中...',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
+          ],
+        ),
+      );
     }
 
-    if (_useDoublePage) {
+    if (_layoutManager.useDoublePage) {
       // 見開きページの場合
-      final pageData = _pageLayout[layoutIndex];
+      final pages = _layoutManager.getPagesForLayout(layoutIndex);
 
-      if (pageData < 65536) {
+      if (pages.isEmpty) {
+        Logger.error('ページ情報を取得できませんでした: $layoutIndex', tag: 'ReaderScreen');
+        return const Center(
+          child: Text(
+            'ページ情報の読み込みエラー',
+            style: TextStyle(fontSize: 16, color: Colors.red),
+          ),
+        );
+      }
+
+      if (pages.length == 1) {
         // シングルページの場合
-        return _buildSinglePageView(pageData);
+        return _buildSinglePageView(pages[0]);
       } else {
         // ダブルページの場合
-        final leftPage = pageData >> 16;
-        final rightPage = pageData & 0xFFFF;
+        final leftPage = pages[0];
+        final rightPage = pages[1];
 
         // 読み方向に応じてページの順序を決定
         final firstPage = _isRightToLeft ? rightPage : leftPage;
@@ -452,16 +404,62 @@ class _ReaderScreenState extends State<ReaderScreen> {
       future: _fileService.getZipImageData(widget.book.filePath, pageIndex),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+              ),
+            ),
+          );
         }
 
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+        if (snapshot.hasError) {
+          Logger.error(
+            'ページ読み込みエラー: $pageIndex',
+            tag: 'ReaderScreen',
+            error: snapshot.error,
+          );
+          return Container(
+            color: Colors.black,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'ページ ${pageIndex + 1} の読み込みエラー',
+                    style: const TextStyle(fontSize: 16, color: Colors.red),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        // 再読み込みを強制
+                        _pageImages = List.filled(widget.book.totalPages, null);
+                      });
+                    },
+                    child: const Text(
+                      '再読み込み',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data == null) {
           return Container(
             color: Colors.black,
             child: Center(
               child: Text(
-                'ページ ${pageIndex + 1} の読み込みエラー',
-                style: const TextStyle(fontSize: 16, color: Colors.red),
+                'ページ ${pageIndex + 1} のデータがありません',
+                style: const TextStyle(fontSize: 16, color: Colors.orange),
               ),
             ),
           );
@@ -471,7 +469,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return Container(
           color: Colors.black,
           constraints:
-              _useDoublePage
+              _layoutManager.useDoublePage
                   ? BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width / 2,
                   )
@@ -481,6 +479,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
             fit: BoxFit.contain,
             // 画像の境界線を削除
             gaplessPlayback: true,
+            // キャッシュを有効化
+            cacheWidth:
+                _layoutManager.useDoublePage
+                    ? (MediaQuery.of(context).size.width ~/ 2).toInt()
+                    : null,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) {
+              Logger.error(
+                'ページ画像表示エラー: $pageIndex',
+                tag: 'ReaderScreen',
+                error: error,
+                stackTrace: stackTrace,
+              );
+              return Center(
+                child: Text(
+                  'ページ ${pageIndex + 1} の表示エラー',
+                  style: const TextStyle(fontSize: 16, color: Colors.red),
+                ),
+              );
+            },
           ),
         );
       },
@@ -489,90 +507,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // キーボードイベントを処理するメソッド
   KeyEventResult _handleKeyEvent(FocusNode node, RawKeyEvent event) {
-    // デバッグ: キーイベントの情報をログに出力
-    print(
-      'キーイベント: ${event.runtimeType}, キー: ${event.logicalKey.keyLabel}, コード: ${event.logicalKey.keyId}',
-    );
-    print('LogicalKeyboardKey.keyH のコード: ${LogicalKeyboardKey.keyH.keyId}');
-    print('LogicalKeyboardKey.keyL のコード: ${LogicalKeyboardKey.keyL.keyId}');
-    print('LogicalKeyboardKey.keyJ のコード: ${LogicalKeyboardKey.keyJ.keyId}');
-    print('LogicalKeyboardKey.keyK のコード: ${LogicalKeyboardKey.keyK.keyId}');
+    // デバッグ情報を出力（詳細モードの場合）
+    _keyboardManager.debugKeyEvent(event);
 
-    if (event is RawKeyDownEvent) {
-      print(
-        'キーダウンイベント検出: ${event.logicalKey.keyLabel}, コード: ${event.logicalKey.keyId}',
-      );
+    // キーイベントを処理してアクションを取得
+    final action = _keyboardManager.processKeyEvent(event);
 
-      // 直接キーコードで比較
-      final keyId = event.logicalKey.keyId;
-
-      if (keyId == 106 || keyId == 0x0000006A) {
-        // j のキーコード
-        print('J キーが押されました');
-        if (event.isShiftPressed) {
-          // Shift+J: 見開きでも1ページだけ進む
-          print('Shift+J: 1ページだけ進みます');
-          _goToNextSinglePage();
-        } else {
-          // j: 常に次のページへ（読み方向に関係なく）
-          print('j: 次のページへ移動します');
-          _goToNextPage();
-        }
+    // アクションに応じた処理を実行
+    switch (action) {
+      case NavigationAction.nextPage:
+        _goToNextPage();
         return KeyEventResult.handled;
-      } else if (keyId == 107 || keyId == 0x0000006B) {
-        // k のキーコード
-        print('K キーが押されました');
-        if (event.isShiftPressed) {
-          // Shift+K: 見開きでも1ページだけ戻る
-          print('Shift+K: 1ページだけ戻ります');
-          _goToPreviousSinglePage();
-        } else {
-          // k: 常に前のページへ（読み方向に関係なく）
-          print('k: 前のページへ移動します');
-          _goToPreviousPage();
-        }
+
+      case NavigationAction.previousPage:
+        _goToPreviousPage();
         return KeyEventResult.handled;
-      } else if (keyId == 104 || keyId == 0x00000068) {
-        // h のキーコード
-        print('H キーが押されました: 1ページだけ進みます');
-        // h: Shift+J と同等（見開きでも1ページだけ進む）
+
+      case NavigationAction.nextSinglePage:
         _goToNextSinglePage();
         return KeyEventResult.handled;
-      } else if (keyId == 108 || keyId == 0x0000006C) {
-        // l のキーコード
-        print('L キーが押されました: 1ページだけ戻ります');
-        // l: Shift+K と同等（見開きでも1ページだけ戻る）
+
+      case NavigationAction.previousSinglePage:
         _goToPreviousSinglePage();
         return KeyEventResult.handled;
-      } else if (keyId == 116 || keyId == 0x00000074) {
-        // t のキーコード (テスト用)
-        print('T キーが押されました: ページコントローラーの状態をテスト');
+
+      case NavigationAction.debug:
         _debugPageController();
         return KeyEventResult.handled;
-      }
+
+      case NavigationAction.none:
+        return KeyEventResult.ignored;
     }
-    return KeyEventResult.ignored;
   }
 
   // ページコントローラーの状態をデバッグ出力
   void _debugPageController() {
-    print('--- PageController デバッグ情報 ---');
-    print('現在のページ: $_currentPage');
-    print('PageController.page: ${_pageController.page}');
-    print('PageController.position.pixels: ${_pageController.position.pixels}');
-    print(
+    Logger.debug('--- PageController デバッグ情報 ---', tag: 'ReaderScreen');
+    Logger.debug('現在のページ: $_currentPage', tag: 'ReaderScreen');
+    Logger.debug(
+      'PageController.page: ${_pageController.page}',
+      tag: 'ReaderScreen',
+    );
+    Logger.debug(
+      'PageController.position.pixels: ${_pageController.position.pixels}',
+      tag: 'ReaderScreen',
+    );
+    Logger.debug(
       'PageController.position.maxScrollExtent: ${_pageController.position.maxScrollExtent}',
+      tag: 'ReaderScreen',
     );
-    print(
+    Logger.debug(
       'PageController.position.viewportDimension: ${_pageController.position.viewportDimension}',
+      tag: 'ReaderScreen',
     );
-    print(
+    Logger.debug(
       'PageController.position.haveDimensions: ${_pageController.position.haveDimensions}',
+      tag: 'ReaderScreen',
     );
-    print('_pageLayout: $_pageLayout');
-    print('_useDoublePage: $_useDoublePage');
-    print('_isRightToLeft: $_isRightToLeft');
-    print('--------------------------------');
+    Logger.debug('ページレイアウト: ${_layoutManager.pageLayout}', tag: 'ReaderScreen');
+    Logger.debug('見開き表示: ${_layoutManager.useDoublePage}', tag: 'ReaderScreen');
+    Logger.debug(
+      '読み方向: ${_isRightToLeft ? "右から左" : "左から右"}',
+      tag: 'ReaderScreen',
+    );
+    Logger.debug('--------------------------------', tag: 'ReaderScreen');
   }
 
   @override
@@ -597,8 +595,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   _updateLastReadPage(page);
                 },
                 itemCount:
-                    _useDoublePage
-                        ? _pageLayout.length
+                    _layoutManager.useDoublePage
+                        ? _layoutManager.pageLayout.length
                         : widget.book.totalPages,
                 itemBuilder: (context, index) {
                   if (widget.book.fileType == 'zip' ||
