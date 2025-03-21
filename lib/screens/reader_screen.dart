@@ -181,7 +181,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  // 見開き表示でも1ページだけ戻る（Shift+K用）
+  // 見開き表示でも1ページだけ戻る（Shift+K/l用）
   void _goToPreviousSinglePage() {
     if (_currentPage <= 0) {
       return; // 最初のページの場合は何もしない
@@ -193,25 +193,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final pageData = _pageLayout[currentLayoutIndex];
 
       if (pageData < 65536) {
-        // 現在シングルページの場合、前のレイアウトインデックスへ
-        if (currentLayoutIndex > 0) {
-          final prevPageData = _pageLayout[currentLayoutIndex - 1];
+        // 現在シングルページの場合
+        final currentPage = pageData;
 
-          if (prevPageData < 65536) {
-            // 前もシングルページの場合は普通に戻る
-            _pageController.animateToPage(
-              currentLayoutIndex - 1,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
+        // 前のレイアウトインデックスを探す
+        for (int i = 0; i < _pageLayout.length; i++) {
+          final layoutData = _pageLayout[i];
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (layoutData == currentPage - 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
           } else {
-            // 前がダブルページの場合
-            // 読み方向に応じて適切なページを表示
-            _pageController.animateToPage(
-              currentLayoutIndex - 1,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (leftPage == currentPage - 1 || rightPage == currentPage - 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
           }
         }
       } else {
@@ -219,16 +230,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
         final leftPage = pageData >> 16;
         final rightPage = pageData & 0xFFFF;
 
-        // 読み方向に応じて前のページを決定
-        final prevPage = _isRightToLeft ? rightPage : leftPage;
+        // 読み方向に応じて現在表示中の最初のページを決定
+        final firstVisiblePage = _isRightToLeft ? rightPage : leftPage;
 
-        // 前のレイアウトインデックスへ
-        if (currentLayoutIndex > 0) {
-          _pageController.animateToPage(
-            currentLayoutIndex - 1,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
+        // 前のレイアウトインデックスを探す（現在の最初のページ-1を含むレイアウト）
+        for (int i = 0; i < _pageLayout.length; i++) {
+          final layoutData = _pageLayout[i];
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (layoutData == firstVisiblePage - 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (leftPage == firstVisiblePage - 1 ||
+                rightPage == firstVisiblePage - 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          }
         }
       }
     } else {
@@ -244,7 +277,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  // 見開き表示でも1ページだけ進む（Shift+J用）
+  // 見開き表示でも1ページだけ進む（Shift+J/h用）
   void _goToNextSinglePage() {
     if (_useDoublePage) {
       // 見開き表示の場合
@@ -252,29 +285,75 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final pageData = _pageLayout[currentLayoutIndex];
 
       if (pageData < 65536) {
-        // 現在シングルページの場合、次のレイアウトインデックスへ
-        if (currentLayoutIndex < _pageLayout.length - 1) {
-          _pageController.animateToPage(
-            currentLayoutIndex + 1,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
+        // 現在シングルページの場合
+        final currentPage = pageData;
+
+        // 次のレイアウトインデックスを探す
+        for (int i = 0; i < _pageLayout.length; i++) {
+          final layoutData = _pageLayout[i];
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (layoutData == currentPage + 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (leftPage == currentPage + 1 || rightPage == currentPage + 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          }
         }
       } else {
         // 現在ダブルページの場合
         final leftPage = pageData >> 16;
         final rightPage = pageData & 0xFFFF;
 
-        // 読み方向に応じて次のページを決定
-        final nextPage = _isRightToLeft ? leftPage : rightPage;
+        // 読み方向に応じて現在表示中の最後のページを決定
+        final lastVisiblePage = _isRightToLeft ? leftPage : rightPage;
 
-        // 次のレイアウトインデックスへ
-        if (currentLayoutIndex < _pageLayout.length - 1) {
-          _pageController.animateToPage(
-            currentLayoutIndex + 1,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
+        // 次のレイアウトインデックスを探す（現在の最後のページ+1を含むレイアウト）
+        for (int i = 0; i < _pageLayout.length; i++) {
+          final layoutData = _pageLayout[i];
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (layoutData == lastVisiblePage + 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (leftPage == lastVisiblePage + 1 ||
+                rightPage == lastVisiblePage + 1) {
+              _pageController.animateToPage(
+                i,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              return;
+            }
+          }
         }
       }
     } else {
