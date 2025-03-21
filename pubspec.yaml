@@ -38,10 +38,12 @@ dependencies:
   # ファイル操作関連
   path: ^1.8.3
   file_picker: ^6.1.1
+  desktop_drop: ^0.4.4
   
   # データ管理
   uuid: ^4.3.3
   shared_preferences: ^2.2.2
+  cross_file: ^0.3.4+2
 
 dev_dependencies:
   flutter_test:

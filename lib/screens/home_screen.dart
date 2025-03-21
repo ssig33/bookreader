@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:cross_file/cross_file.dart';
+import 'dart:io';
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../widgets/book_list_item.dart';
@@ -16,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Book> _books = [];
   List<String> _selectedTags = [];
   List<String> _allTags = [];
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -62,6 +66,53 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('エラー: ${e.toString()}')));
+      }
+    }
+  }
+
+  Future<void> _handleDroppedFiles(List<XFile> files) async {
+    if (files.isEmpty) return;
+
+    int successCount = 0;
+    List<String> errors = [];
+
+    for (final file in files) {
+      try {
+        final path = file.path;
+        final extension = path.split('.').last.toLowerCase();
+
+        if (['zip', 'cbz', 'pdf'].contains(extension)) {
+          await _bookService.addBook(path);
+          successCount++;
+        } else {
+          errors.add('${file.name}: サポートされていないファイル形式です');
+        }
+      } catch (e) {
+        errors.add('${file.name}: ${e.toString()}');
+      }
+    }
+
+    _loadBooks();
+
+    if (mounted) {
+      if (successCount > 0) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$successCount 件のファイルを追加しました')));
+      }
+
+      if (errors.isNotEmpty) {
+        // エラーがある場合は別途表示
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('エラー: ${errors.join(', ')}'),
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        });
       }
     }
   }
@@ -177,22 +228,76 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body:
-          _books.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                itemCount: _books.length,
-                itemBuilder: (context, index) {
-                  final book = _books[index];
-                  return BookListItem(
-                    book: book,
-                    onTap: () => _openBook(book),
-                    onRename: () => _renameBook(book.id, book.title),
-                    onDelete: () => _deleteBook(book.id),
-                    onAddTag: (tag) => _addTag(book.id, tag),
-                  );
-                },
+      body: DropTarget(
+        onDragDone: (detail) {
+          _handleDroppedFiles(detail.files);
+        },
+        onDragEntered: (detail) {
+          setState(() {
+            _isDragging = true;
+          });
+        },
+        onDragExited: (detail) {
+          setState(() {
+            _isDragging = false;
+          });
+        },
+        child: Stack(
+          children: [
+            _books.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                  itemCount: _books.length,
+                  itemBuilder: (context, index) {
+                    final book = _books[index];
+                    return BookListItem(
+                      book: book,
+                      onTap: () => _openBook(book),
+                      onRename: () => _renameBook(book.id, book.title),
+                      onDelete: () => _deleteBook(book.id),
+                      onAddTag: (tag) => _addTag(book.id, tag),
+                    );
+                  },
+                ),
+            if (_isDragging)
+              Container(
+                color: Colors.blue.withOpacity(0.2),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.file_download, size: 48, color: Colors.blue),
+                        SizedBox(height: 16),
+                        Text(
+                          'ファイルをドロップしてライブラリに追加',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text('対応形式: ZIP, CBZ, PDF'),
+                      ],
+                    ),
+                  ),
+                ),
               ),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _pickAndAddBook,
         tooltip: 'ファイルを追加',
@@ -220,10 +325,24 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: _clearTagFilters,
             )
           else
-            ElevatedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('ファイルを追加'),
-              onPressed: _pickAndAddBook,
+            Column(
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('ファイルを追加'),
+                  onPressed: _pickAndAddBook,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'または、ファイルをここにドラッグ＆ドロップ',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '対応形式: ZIP, CBZ, PDF',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
             ),
         ],
       ),
