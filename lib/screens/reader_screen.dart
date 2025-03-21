@@ -183,134 +183,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // 見開き表示でも1ページだけ戻る（Shift+K/l用）
   void _goToPreviousSinglePage() {
-    print('_goToPreviousSinglePage が呼び出されました');
-    print('現在のページ: $_currentPage, 見開き表示: $_useDoublePage');
-    print('_pageLayout の長さ: ${_pageLayout.length}');
-
-    if (_currentPage <= 0) {
-      print('最初のページなので何もしません');
-      return; // 最初のページの場合は何もしない
-    }
-
-    if (_useDoublePage) {
-      // 見開き表示の場合
-      final currentLayoutIndex = _currentPage;
-      print('現在のレイアウトインデックス: $currentLayoutIndex');
-
-      if (currentLayoutIndex >= _pageLayout.length) {
-        print(
-          'エラー: currentLayoutIndex($_currentPage)が_pageLayout(${_pageLayout.length})の範囲外です',
-        );
-        return;
-      }
-
-      final pageData = _pageLayout[currentLayoutIndex];
-      print('現在のページデータ: $pageData');
-
-      if (pageData < 65536) {
-        // 現在シングルページの場合
-        final currentPage = pageData;
-        print('現在シングルページ表示: ページ番号 $currentPage');
-
-        // 前のレイアウトインデックスを探す
-        print('前のレイアウトインデックスを探します...');
-        for (int i = 0; i < _pageLayout.length; i++) {
-          final layoutData = _pageLayout[i];
-          print('インデックス $i のレイアウトデータ: $layoutData');
-
-          if (layoutData < 65536) {
-            // シングルページの場合
-            print('インデックス $i はシングルページ: $layoutData');
-            if (layoutData == currentPage - 1) {
-              print('前のページが見つかりました: インデックス $i, ページ ${currentPage - 1}');
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          } else {
-            // ダブルページの場合
-            final leftPage = layoutData >> 16;
-            final rightPage = layoutData & 0xFFFF;
-            print('インデックス $i はダブルページ: 左=$leftPage, 右=$rightPage');
-
-            if (leftPage == currentPage - 1 || rightPage == currentPage - 1) {
-              print(
-                '前のページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
-              );
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          }
-        }
-        print('前のページが見つかりませんでした');
-      } else {
-        // 現在ダブルページの場合
-        final leftPage = pageData >> 16;
-        final rightPage = pageData & 0xFFFF;
-        print('現在ダブルページ表示: 左ページ $leftPage, 右ページ $rightPage');
-
-        // 読み方向に応じて現在表示中の最初のページを決定
-        final firstVisiblePage = _isRightToLeft ? rightPage : leftPage;
-        print(
-          '現在表示中の最初のページ: $firstVisiblePage, 読み方向: ${_isRightToLeft ? "右から左" : "左から右"}',
-        );
-
-        // 前のレイアウトインデックスを探す（現在の最初のページ-1を含むレイアウト）
-        print('前のレイアウトインデックスを探します...');
-        for (int i = 0; i < _pageLayout.length; i++) {
-          final layoutData = _pageLayout[i];
-          print('インデックス $i のレイアウトデータ: $layoutData');
-
-          if (layoutData < 65536) {
-            // シングルページの場合
-            print('インデックス $i はシングルページ: $layoutData');
-            if (layoutData == firstVisiblePage - 1) {
-              print('前のページが見つかりました: インデックス $i, ページ ${firstVisiblePage - 1}');
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          } else {
-            // ダブルページの場合
-            final leftPage = layoutData >> 16;
-            final rightPage = layoutData & 0xFFFF;
-            print('インデックス $i はダブルページ: 左=$leftPage, 右=$rightPage');
-
-            if (leftPage == firstVisiblePage - 1 ||
-                rightPage == firstVisiblePage - 1) {
-              print(
-                '前のページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
-              );
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          }
-        }
-        print('前のページが見つかりませんでした');
-      }
-    } else {
-      // 通常の単一ページ表示の場合は普通に前へ
-      print('通常の単一ページ表示なので _goToPreviousPage() を呼び出します');
-      _goToPreviousPage();
-    }
+    // 直接ページコントローラーを使用してページ移動
+    _navigateToRelativePage(-1);
   }
 
   void _goToNextPage() {
@@ -322,128 +196,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // 見開き表示でも1ページだけ進む（Shift+J/h用）
   void _goToNextSinglePage() {
-    print('_goToNextSinglePage が呼び出されました');
-    print('現在のページ: $_currentPage, 見開き表示: $_useDoublePage');
-    print('_pageLayout の長さ: ${_pageLayout.length}');
+    // 直接ページコントローラーを使用してページ移動
+    _navigateToRelativePage(1);
+  }
 
-    if (_useDoublePage) {
-      // 見開き表示の場合
-      final currentLayoutIndex = _currentPage;
-      print('現在のレイアウトインデックス: $currentLayoutIndex');
+  // 相対的なページ移動を行う
+  void _navigateToRelativePage(int direction) {
+    try {
+      print('相対的なページ移動: 方向=$direction');
+      print('現在のページ: $_currentPage');
 
-      if (currentLayoutIndex >= _pageLayout.length) {
-        print(
-          'エラー: currentLayoutIndex($_currentPage)が_pageLayout(${_pageLayout.length})の範囲外です',
-        );
-        return;
-      }
+      // 現在のページから指定方向に移動
+      final targetPage = _currentPage + direction;
+      print('目標ページ: $targetPage');
 
-      final pageData = _pageLayout[currentLayoutIndex];
-      print('現在のページデータ: $pageData');
-
-      if (pageData < 65536) {
-        // 現在シングルページの場合
-        final currentPage = pageData;
-        print('現在シングルページ表示: ページ番号 $currentPage');
-
-        // 次のレイアウトインデックスを探す
-        print('次のレイアウトインデックスを探します...');
-        for (int i = 0; i < _pageLayout.length; i++) {
-          final layoutData = _pageLayout[i];
-          print('インデックス $i のレイアウトデータ: $layoutData');
-
-          if (layoutData < 65536) {
-            // シングルページの場合
-            print('インデックス $i はシングルページ: $layoutData');
-            if (layoutData == currentPage + 1) {
-              print('次のページが見つかりました: インデックス $i, ページ ${currentPage + 1}');
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          } else {
-            // ダブルページの場合
-            final leftPage = layoutData >> 16;
-            final rightPage = layoutData & 0xFFFF;
-            print('インデックス $i はダブルページ: 左=$leftPage, 右=$rightPage');
-
-            if (leftPage == currentPage + 1 || rightPage == currentPage + 1) {
-              print(
-                '次のページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
-              );
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          }
-        }
-        print('次のページが見つかりませんでした');
+      if (targetPage >= 0 &&
+          targetPage <
+              (_useDoublePage ? _pageLayout.length : widget.book.totalPages)) {
+        print('_pageController.jumpToPage($targetPage) を呼び出します');
+        _pageController.jumpToPage(targetPage);
+        print('ページ移動完了');
       } else {
-        // 現在ダブルページの場合
-        final leftPage = pageData >> 16;
-        final rightPage = pageData & 0xFFFF;
-        print('現在ダブルページ表示: 左ページ $leftPage, 右ページ $rightPage');
-
-        // 読み方向に応じて現在表示中の最後のページを決定
-        final lastVisiblePage = _isRightToLeft ? leftPage : rightPage;
-        print(
-          '現在表示中の最後のページ: $lastVisiblePage, 読み方向: ${_isRightToLeft ? "右から左" : "左から右"}',
-        );
-
-        // 次のレイアウトインデックスを探す（現在の最後のページ+1を含むレイアウト）
-        print('次のレイアウトインデックスを探します...');
-        for (int i = 0; i < _pageLayout.length; i++) {
-          final layoutData = _pageLayout[i];
-          print('インデックス $i のレイアウトデータ: $layoutData');
-
-          if (layoutData < 65536) {
-            // シングルページの場合
-            print('インデックス $i はシングルページ: $layoutData');
-            if (layoutData == lastVisiblePage + 1) {
-              print('次のページが見つかりました: インデックス $i, ページ ${lastVisiblePage + 1}');
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          } else {
-            // ダブルページの場合
-            final leftPage = layoutData >> 16;
-            final rightPage = layoutData & 0xFFFF;
-            print('インデックス $i はダブルページ: 左=$leftPage, 右=$rightPage');
-
-            if (leftPage == lastVisiblePage + 1 ||
-                rightPage == lastVisiblePage + 1) {
-              print(
-                '次のページが見つかりました: インデックス $i, 左ページ $leftPage, 右ページ $rightPage',
-              );
-              print('_pageController.animateToPage($i) を呼び出します');
-              _pageController.animateToPage(
-                i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-              return;
-            }
-          }
-        }
-        print('次のページが見つかりませんでした');
+        print('目標ページが範囲外です');
       }
-    } else {
-      // 通常の単一ページ表示の場合は普通に次へ
-      print('通常の単一ページ表示なので _goToNextPage() を呼び出します');
-      _goToNextPage();
+    } catch (e) {
+      print('ページ移動中にエラーが発生しました: $e');
     }
   }
 
@@ -586,15 +363,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         // h のキーコード
         print('H キーが押されました: 1ページだけ進みます');
         // h: Shift+J と同等（見開きでも1ページだけ進む）
-        // _goToNextSinglePage();
-        _testDirectPageNavigation(1); // 直接ページコントローラーを使用してテスト
+        _goToNextSinglePage();
         return KeyEventResult.handled;
       } else if (keyId == 108 || keyId == 0x0000006C) {
         // l のキーコード
         print('L キーが押されました: 1ページだけ戻ります');
         // l: Shift+K と同等（見開きでも1ページだけ戻る）
-        // _goToPreviousSinglePage();
-        _testDirectPageNavigation(-1); // 直接ページコントローラーを使用してテスト
+        _goToPreviousSinglePage();
         return KeyEventResult.handled;
       } else if (keyId == 116 || keyId == 0x00000074) {
         // t のキーコード (テスト用)
@@ -625,30 +400,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     print('_useDoublePage: $_useDoublePage');
     print('_isRightToLeft: $_isRightToLeft');
     print('--------------------------------');
-  }
-
-  // 直接ページコントローラーを使用してページ移動をテスト
-  void _testDirectPageNavigation(int direction) {
-    try {
-      print('直接ページコントローラーを使用してページ移動をテスト: 方向=$direction');
-      print('現在のページ: $_currentPage');
-
-      // 現在のページから1ページ進む/戻る
-      final targetPage = _currentPage + direction;
-      print('目標ページ: $targetPage');
-
-      if (targetPage >= 0 &&
-          targetPage <
-              (_useDoublePage ? _pageLayout.length : widget.book.totalPages)) {
-        print('_pageController.jumpToPage($targetPage) を呼び出します');
-        _pageController.jumpToPage(targetPage);
-        print('ページ移動完了');
-      } else {
-        print('目標ページが範囲外です');
-      }
-    } catch (e) {
-      print('ページ移動中にエラーが発生しました: $e');
-    }
   }
 
   @override
