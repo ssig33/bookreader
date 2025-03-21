@@ -16,12 +16,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
   bool _showControls = false;
   int _currentPage = 0;
   late PageController _pageController;
+  // 本の読み方向を管理するローカル状態
+  late bool _isRightToLeft;
 
   @override
   void initState() {
     super.initState();
     _currentPage = widget.book.lastReadPage;
+    _isRightToLeft = widget.book.isRightToLeft; // 初期値を設定
     _pageController = PageController(initialPage: _currentPage);
+    print('初期化: 読み方向=${_isRightToLeft ? "右から左" : "左から右"}');
   }
 
   @override
@@ -68,7 +72,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             // ページビュー（ここに実際の本の内容を表示）
             PageView.builder(
               controller: _pageController,
-              reverse: widget.book.isRightToLeft, // 右から左への読み方向に対応
+              reverse: _isRightToLeft, // 右から左への読み方向に対応
               onPageChanged: (int page) {
                 setState(() {
                   _currentPage = page;
@@ -126,28 +130,51 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                       TextButton.icon(
                         icon: Icon(
-                          widget.book.isRightToLeft
+                          _isRightToLeft
                               ? Icons.format_textdirection_r_to_l
                               : Icons.format_textdirection_l_to_r,
                           color: Colors.white,
                         ),
                         label: Text(
-                          widget.book.isRightToLeft ? '右→左' : '左→右',
+                          _isRightToLeft ? '右→左' : '左→右',
                           style: const TextStyle(color: Colors.white),
                         ),
                         onPressed: () async {
-                          final updatedBook = await _bookService
-                              .toggleReadingDirection(widget.book.id);
-                          // 現在のページを保存
-                          final currentPage = _currentPage;
+                          print('読み方向切り替えボタンが押されました');
+                          print('現在の読み方向: ${_isRightToLeft ? "右から左" : "左から右"}');
 
-                          // PageControllerを再作成して向きを更新
-                          setState(() {
-                            _pageController.dispose();
-                            _pageController = PageController(
-                              initialPage: currentPage,
+                          try {
+                            // サービスで本の読み方向を切り替え
+                            final updatedBook = await _bookService
+                                .toggleReadingDirection(widget.book.id);
+
+                            print(
+                              '更新後の読み方向: ${updatedBook.isRightToLeft ? "右から左" : "左から右"}',
                             );
-                          });
+
+                            // 現在のページを保存
+                            final currentPage = _currentPage;
+                            print('現在のページ: $currentPage');
+
+                            // ローカル状態と PageController を更新
+                            setState(() {
+                              print('setState呼び出し');
+                              // ローカル状態を更新
+                              _isRightToLeft = updatedBook.isRightToLeft;
+                              print(
+                                'ローカル状態を更新: _isRightToLeft=$_isRightToLeft',
+                              );
+
+                              // PageControllerを再作成
+                              _pageController.dispose();
+                              _pageController = PageController(
+                                initialPage: currentPage,
+                              );
+                              print('PageController再作成完了');
+                            });
+                          } catch (e) {
+                            print('エラー発生: $e');
+                          }
                         },
                         style: TextButton.styleFrom(
                           backgroundColor: Colors.blue.withOpacity(0.3),
@@ -180,9 +207,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        widget.book.isRightToLeft
-                            ? '← 右から左へめくる →'
-                            : '← 左から右へめくる →',
+                        _isRightToLeft ? '← 右から左へめくる →' : '← 左から右へめくる →',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -201,14 +226,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                           child: IconButton(
                             icon: Icon(
-                              widget.book.isRightToLeft
+                              _isRightToLeft
                                   ? Icons.keyboard_arrow_right
                                   : Icons.keyboard_arrow_left,
                               color: Colors.white,
                               size: 32,
                             ),
                             onPressed:
-                                widget.book.isRightToLeft
+                                _isRightToLeft
                                     ? _goToNextPage
                                     : _goToPreviousPage,
                             tooltip: '前のページ',
@@ -239,14 +264,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           ),
                           child: IconButton(
                             icon: Icon(
-                              widget.book.isRightToLeft
+                              _isRightToLeft
                                   ? Icons.keyboard_arrow_left
                                   : Icons.keyboard_arrow_right,
                               color: Colors.white,
                               size: 32,
                             ),
                             onPressed:
-                                widget.book.isRightToLeft
+                                _isRightToLeft
                                     ? _goToPreviousPage
                                     : _goToNextPage,
                             tooltip: '次のページ',
