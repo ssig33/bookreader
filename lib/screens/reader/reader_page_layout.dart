@@ -15,60 +15,44 @@ class ReaderPageLayout {
   /// 画像のアスペクト比を分析して見開きレイアウトを決定
   Future<void> determinePageLayout(BuildContext context) async {
     final totalPages = book.totalPages;
+    pageLayout = List.generate(totalPages, (index) => index);
 
     // 画面のアスペクト比を取得
     final screenSize = MediaQuery.of(context).size;
     final screenAspect = screenSize.width / screenSize.height;
 
-    // 画像のアスペクト比を取得（初回または必要な場合のみ）
-    List<double?> aspectRatios = [];
-    double avgAspect = 0;
+    // 見開き表示が可能かどうかを判断
+    if (screenAspect >= 1.2) {
+      // 横長の画面の場合
+      List<double?> aspectRatios = [];
 
-    // 最初の10ページ（または全ページ）のアスペクト比を取得
-    final pagesToCheck = totalPages > 10 ? 10 : totalPages;
-    for (int i = 0; i < pagesToCheck; i++) {
-      final aspect = await imageLoader.getImageAspectRatio(i);
-      aspectRatios.add(aspect);
-    }
-
-    // アスペクト比の平均を計算
-    int validCount = 0;
-    for (final aspect in aspectRatios) {
-      if (aspect != null) {
-        avgAspect += aspect;
-        validCount++;
+      // 最初の10ページ（または全ページ）のアスペクト比を取得
+      final pagesToCheck = totalPages > 10 ? 10 : totalPages;
+      for (int i = 0; i < pagesToCheck; i++) {
+        final aspect = await imageLoader.getImageAspectRatio(i);
+        aspectRatios.add(aspect);
       }
-    }
 
-    if (validCount > 0) {
-      avgAspect /= validCount;
-    } else {
-      // アスペクト比が取得できない場合はデフォルト値を使用
-      avgAspect = 0.7; // 一般的な漫画のページのアスペクト比
-    }
+      // アスペクト比の平均を計算
+      double avgAspect = 0;
+      int validCount = 0;
+      for (final aspect in aspectRatios) {
+        if (aspect != null) {
+          avgAspect += aspect;
+          validCount++;
+        }
+      }
 
-    // 画面の向きと画像のアスペクト比に基づいて表示モードを決定
-    bool shouldUseDoublePage = false;
+      if (validCount > 0) {
+        avgAspect /= validCount;
 
-    // 横長の画面（横向き）で、画像が縦長の場合は見開き表示
-    if (screenAspect >= 1.2 && avgAspect < 0.8) {
-      shouldUseDoublePage = true;
-    }
-    // 縦長の画面（縦向き）では単ページ表示
-    else {
-      shouldUseDoublePage = false;
-    }
+        // 平均アスペクト比が縦長（0.8未満）の場合、見開き表示を有効にする
+        if (avgAspect < 0.8) {
+          useDoublePage = true;
 
-    // 表示モードが変更された場合のみレイアウトを再構築
-    if (shouldUseDoublePage != useDoublePage) {
-      useDoublePage = shouldUseDoublePage;
-
-      if (useDoublePage) {
-        // 見開きページレイアウトを作成
-        createDoublePageLayout(totalPages);
-      } else {
-        // 単一ページレイアウトを作成
-        pageLayout = List.generate(totalPages, (index) => index);
+          // 見開きページレイアウトを作成
+          createDoublePageLayout(totalPages);
+        }
       }
     }
   }

@@ -297,6 +297,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
 
       // 各ページをプリロード
+      // 各ページをプリロード
       for (final page in uniquePages) {
         _imageLoader!.preloadPage(page);
       }
@@ -304,380 +305,281 @@ class _ReaderScreenState extends State<ReaderScreen> {
     // PDFファイルの場合は現在サポートされていません
   }
 
-  // 画面サイズの変更を検出し、ページレイアウトを再評価するメソッド
-  Future<void> _handleScreenSizeChange(BuildContext context) async {
-    if (_pageLayout == null || _imageLoader == null) return;
-
-    // 現在のページ情報を保存
-    final currentLayoutIndex = _currentPage;
-    int? currentRealPage;
-
-    // 現在表示中の実際のページ番号を取得
-    if (_pageLayout!.useDoublePage &&
-        currentLayoutIndex < _pageLayout!.pageLayout.length) {
-      final currentPageData = _pageLayout!.pageLayout[currentLayoutIndex];
-      if (currentPageData < 65536) {
-        // シングルページの場合
-        currentRealPage = currentPageData;
-      } else {
-        // ダブルページの場合は左ページを基準にする
-        currentRealPage = currentPageData >> 16;
-      }
-    } else {
-      currentRealPage = currentLayoutIndex;
-    }
-
-    // 以前の設定を保存
-    final wasDoublePage = _pageLayout!.useDoublePage;
-
-    // ページレイアウトを再評価
-    await _pageLayout!.determinePageLayout(context);
-
-    // レイアウトが変更された場合のみ処理
-    if (wasDoublePage != _pageLayout!.useDoublePage) {
-      // ナビゲーションを更新
-      _navigation = ReaderNavigation(
-        book: widget.book,
-        pageController: _pageController,
-        useDoublePage: _pageLayout!.useDoublePage,
-        pageLayout: _pageLayout!.pageLayout,
-      );
-
-      // 適切なページに移動
-      if (currentRealPage != null) {
-        // PageControllerを再作成
-        _pageController.dispose();
-
-        if (_pageLayout!.useDoublePage) {
-          // 単一ページから見開きページに切り替わった場合
-          // 現在のページを含むレイアウトインデックスを探す
-          int targetLayoutIndex = 0;
-          for (int i = 0; i < _pageLayout!.pageLayout.length; i++) {
-            final layoutData = _pageLayout!.pageLayout[i];
-            if (layoutData < 65536) {
-              // シングルページの場合
-              if (layoutData == currentRealPage) {
-                targetLayoutIndex = i;
-                break;
-              }
-            } else {
-              // ダブルページの場合
-              final leftPage = layoutData >> 16;
-              final rightPage = layoutData & 0xFFFF;
-              if (leftPage == currentRealPage || rightPage == currentRealPage) {
-                targetLayoutIndex = i;
-                break;
-              }
-            }
-          }
-          _pageController = PageController(initialPage: targetLayoutIndex);
-          _currentPage = targetLayoutIndex;
-        } else {
-          // 見開きページから単一ページに切り替わった場合
-          _pageController = PageController(initialPage: currentRealPage);
-          _currentPage = currentRealPage;
-        }
-      } else {
-        // 何らかの理由で現在のページが取得できなかった場合
-        _pageController = PageController(initialPage: _currentPage);
-      }
-
-      // 状態を更新
-      setState(() {});
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: OrientationBuilder(
-        builder: (context, orientation) {
-          // 画面の向きが変わったときにレイアウトを再評価
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _handleScreenSizeChange(context);
-          });
+      body: Focus(
+        focusNode: _focusNode,
+        autofocus: true,
+        onKeyEvent:
+            (node, event) =>
+                _keyboardHandler?.handleKeyEvent(node, event) ??
+                KeyEventResult.ignored,
+        child: GestureDetector(
+          onTap: _toggleControls,
+          child: Stack(
+            children: [
+              // ページビュー（ここに実際の本の内容を表示）
+              PageView.builder(
+                controller: _pageController,
+                reverse: _isRightToLeft, // 右から左への読み方向に対応
+                onPageChanged: (int page) {
+                  setState(() {
+                    _currentPage = page;
+                  });
+                  _navigation?.updateLastReadPage(page);
 
-          return Focus(
-            focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent:
-                (node, event) =>
-                    _keyboardHandler?.handleKeyEvent(node, event) ??
-                    KeyEventResult.ignored,
-            child: GestureDetector(
-              onTap: _toggleControls,
-              child: Stack(
-                children: [
-                  // ページビュー（ここに実際の本の内容を表示）
-                  PageView.builder(
-                    controller: _pageController,
-                    reverse: _isRightToLeft, // 右から左への読み方向に対応
-                    onPageChanged: (int page) {
-                      setState(() {
-                        _currentPage = page;
-                      });
-                      _navigation?.updateLastReadPage(page);
+                  // 隣接ページをプリロード
+                  _preloadAdjacentPages(page);
+                },
+                itemCount:
+                    _pageLayout != null && _pageLayout?.useDoublePage == true
+                        ? _pageLayout?.pageLayout.length ??
+                            widget.book.totalPages
+                        : widget.book.totalPages,
+                itemBuilder: (context, index) {
+                  if (widget.book.fileType == 'zip' ||
+                      widget.book.fileType == 'cbz') {
+                    if (_pageLayout != null) {
+                      return _pageLayout!.buildZipPageView(
+                        index,
+                        _isRightToLeft,
+                        context,
+                      );
+                    } else {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                  } else {
+                    // PDFやその他のファイルタイプの場合は仮表示
+                    return Container(
+                      color: Colors.white,
+                      child: Center(
+                        child: Text(
+                          'ページ ${index + 1}',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
 
-                      // 隣接ページをプリロード
-                      _preloadAdjacentPages(page);
-                    },
-                    itemCount:
-                        _pageLayout != null &&
-                                _pageLayout?.useDoublePage == true
-                            ? _pageLayout?.pageLayout.length ??
-                                widget.book.totalPages
-                            : widget.book.totalPages,
-                    itemBuilder: (context, index) {
-                      if (widget.book.fileType == 'zip' ||
-                          widget.book.fileType == 'cbz') {
-                        if (_pageLayout != null) {
-                          return _pageLayout!.buildZipPageView(
-                            index,
-                            _isRightToLeft,
-                            context,
-                          );
-                        } else {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                      } else {
-                        // PDFやその他のファイルタイプの場合は仮表示
-                        return Container(
-                          color: Colors.white,
-                          child: Center(
-                            child: Text(
-                              'ページ ${index + 1}',
-                              style: const TextStyle(fontSize: 24),
+              // 上部コントロール（タップで表示/非表示）
+              if (_showControls)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.black.withAlpha(179),
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top,
+                      left: 8,
+                      right: 8,
+                      bottom: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          tooltip: '戻る',
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.book.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (widget.book.totalPages > 0)
+                                Text(
+                                  'ページ: ${_currentPage + 1} / ${widget.book.totalPages}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: Icon(
+                            _isRightToLeft
+                                ? Icons.format_textdirection_r_to_l
+                                : Icons.format_textdirection_l_to_r,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            _isRightToLeft ? '右→左' : '左→右',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          onPressed: () async {
+                            try {
+                              // サービスで本の読み方向を切り替え
+                              final updatedBook = await _bookService
+                                  .toggleReadingDirection(widget.book.id);
+
+                              // 現在のページを保存
+                              final currentPage = _currentPage;
+
+                              // ローカル状態と PageController を更新
+                              setState(() {
+                                // ローカル状態を更新
+                                _isRightToLeft = updatedBook.isRightToLeft;
+
+                                // PageControllerを再作成
+                                _pageController.dispose();
+                                _pageController = PageController(
+                                  initialPage: currentPage,
+                                );
+
+                                // ナビゲーションを更新
+                                _navigation = ReaderNavigation(
+                                  book: widget.book,
+                                  pageController: _pageController,
+                                  useDoublePage: _pageLayout!.useDoublePage,
+                                  pageLayout: _pageLayout!.pageLayout,
+                                );
+                              });
+                            } catch (e) {
+                              // エラー処理
+                            }
+                          },
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.blue.withAlpha(77),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // 左右のページめくりコントロール
+              if (_showControls)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.of(context).padding.bottom + 16,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ページめくり方向の説明
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(179),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          _isRightToLeft ? '← 右から左へめくる →' : '← 左から右へめくる →',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // 左側のボタン
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withAlpha(128),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.keyboard_arrow_left,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                              onPressed:
+                                  _isRightToLeft
+                                      ? _goToNextPage
+                                      : _goToPreviousPage,
+                              tooltip: _isRightToLeft ? '次のページ' : '前のページ',
                             ),
                           ),
-                        );
-                      }
-                    },
-                  ),
 
-                  // 上部コントロール（タップで表示/非表示）
-                  if (_showControls)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        color: Colors.black.withAlpha(179),
-                        padding: EdgeInsets.only(
-                          top: MediaQuery.of(context).padding.top,
-                          left: 8,
-                          right: 8,
-                          bottom: 8,
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
+                          // ページ番号表示（タップでページ入力ダイアログを表示）
+                          GestureDetector(
+                            onTap: _showPageInputDialog,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
                               ),
-                              onPressed: () {
-                                Navigator.pop(context);
-                              },
-                              tooltip: '戻る',
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha(179),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    widget.book.title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    widget.book.totalPages > 0
+                                        ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
+                                        : 'ページ ${_currentPage + 1}',
+                                    style: const TextStyle(color: Colors.white),
                                   ),
-                                  if (widget.book.totalPages > 0)
-                                    Text(
-                                      'ページ: ${_currentPage + 1} / ${widget.book.totalPages}',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.edit,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
                                 ],
                               ),
                             ),
-                            TextButton.icon(
-                              icon: Icon(
-                                _isRightToLeft
-                                    ? Icons.format_textdirection_r_to_l
-                                    : Icons.format_textdirection_l_to_r,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                _isRightToLeft ? '右→左' : '左→右',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              onPressed: () async {
-                                try {
-                                  // サービスで本の読み方向を切り替え
-                                  final updatedBook = await _bookService
-                                      .toggleReadingDirection(widget.book.id);
-
-                                  // 現在のページを保存
-                                  final currentPage = _currentPage;
-
-                                  // ローカル状態と PageController を更新
-                                  setState(() {
-                                    // ローカル状態を更新
-                                    _isRightToLeft = updatedBook.isRightToLeft;
-
-                                    // PageControllerを再作成
-                                    _pageController.dispose();
-                                    _pageController = PageController(
-                                      initialPage: currentPage,
-                                    );
-
-                                    // ナビゲーションを更新
-                                    _navigation = ReaderNavigation(
-                                      book: widget.book,
-                                      pageController: _pageController,
-                                      useDoublePage: _pageLayout!.useDoublePage,
-                                      pageLayout: _pageLayout!.pageLayout,
-                                    );
-                                  });
-                                } catch (e) {
-                                  // エラー処理
-                                }
-                              },
-                              style: TextButton.styleFrom(
-                                backgroundColor: Colors.blue.withAlpha(77),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // 左右のページめくりコントロール
-                  if (_showControls)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: MediaQuery.of(context).padding.bottom + 16,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // ページめくり方向の説明
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(179),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              _isRightToLeft ? '← 右から左へめくる →' : '← 左から右へめくる →',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
                           ),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              // 左側のボタン
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha(128),
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.keyboard_arrow_left,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                  onPressed:
-                                      _isRightToLeft
-                                          ? _goToNextPage
-                                          : _goToPreviousPage,
-                                  tooltip: _isRightToLeft ? '次のページ' : '前のページ',
-                                ),
+                          // 右側のボタン
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withAlpha(128),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.keyboard_arrow_right,
+                                color: Colors.white,
+                                size: 32,
                               ),
-
-                              // ページ番号表示（タップでページ入力ダイアログを表示）
-                              GestureDetector(
-                                onTap: _showPageInputDialog,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withAlpha(179),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        widget.book.totalPages > 0
-                                            ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
-                                            : 'ページ ${_currentPage + 1}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.edit,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              // 右側のボタン
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha(128),
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.keyboard_arrow_right,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                  onPressed:
-                                      _isRightToLeft
-                                          ? _goToPreviousPage
-                                          : _goToNextPage,
-                                  tooltip: _isRightToLeft ? '前のページ' : '次のページ',
-                                ),
-                              ),
-                            ],
+                              onPressed:
+                                  _isRightToLeft
+                                      ? _goToPreviousPage
+                                      : _goToNextPage,
+                              tooltip: _isRightToLeft ? '前のページ' : '次のページ',
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
