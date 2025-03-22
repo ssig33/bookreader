@@ -3,7 +3,7 @@ import '../services/file_service.dart';
 import 'dart:io';
 
 class StorageInfoScreen extends StatefulWidget {
-  const StorageInfoScreen({Key? key}) : super(key: key);
+  const StorageInfoScreen({super.key});
 
   @override
   State<StorageInfoScreen> createState() => _StorageInfoScreenState();

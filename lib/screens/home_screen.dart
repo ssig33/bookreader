@@ -9,7 +9,7 @@ import 'storage_info_screen.dart';
 import 'reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -18,7 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final BookService _bookService = BookService();
   List<Book> _books = [];
-  List<String> _selectedTags = [];
+  final List<String> _selectedTags = [];
   List<String> _allTags = [];
   bool _isDragging = false;
 
@@ -145,21 +145,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               TextButton(
                 onPressed: () async {
+                  // 非同期処理の前にcontextを保存
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
                   try {
                     await _bookService.deleteBook(id);
                     _loadBooks();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('ファイルを削除しました')),
-                      );
-                    }
+                    if (!mounted) return;
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(content: Text('ファイルを削除しました')),
+                    );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('削除エラー: ${e.toString()}')),
-                      );
-                    }
+                    if (!mounted) return;
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('削除エラー: ${e.toString()}')),
+                    );
                   }
                 },
                 child: const Text('削除'),
@@ -297,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             if (_isDragging)
               Container(
-                color: Colors.blue.withOpacity(0.2),
+                color: Colors.blue.withAlpha(51),
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -306,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withAlpha(26),
                           blurRadius: 8,
                           spreadRadius: 2,
                         ),

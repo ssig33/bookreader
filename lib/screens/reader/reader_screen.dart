@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
 import 'reader_image_loader.dart';
@@ -11,7 +10,7 @@ import 'reader_keyboard_handler.dart';
 class ReaderScreen extends StatefulWidget {
   final Book book;
 
-  const ReaderScreen({Key? key, required this.book}) : super(key: key);
+  const ReaderScreen({super.key, required this.book});
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -73,6 +72,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
 
       // 画像のアスペクト比を分析して見開きレイアウトを決定
+      if (!mounted) return;
       await _pageLayout!.determinePageLayout(context);
 
       // ナビゲーションを初期化
@@ -226,7 +226,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: Focus(
         focusNode: _focusNode,
         autofocus: true,
-        onKey:
+        onKeyEvent:
             (node, event) =>
                 _keyboardHandler?.handleKeyEvent(node, event) ??
                 KeyEventResult.ignored,
@@ -286,7 +286,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withAlpha(179),
                     padding: EdgeInsets.only(
                       top: MediaQuery.of(context).padding.top,
                       left: 8,
@@ -375,7 +375,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             }
                           },
                           style: TextButton.styleFrom(
-                            backgroundColor: Colors.blue.withOpacity(0.3),
+                            backgroundColor: Colors.blue.withAlpha(77),
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                           ),
                         ),
@@ -401,7 +401,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         ),
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
+                          color: Colors.black.withAlpha(179),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
@@ -419,7 +419,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           // 左側のボタン
                           Container(
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.5),
+                              color: Colors.black.withAlpha(128),
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: IconButton(
@@ -443,7 +443,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
+                              color: Colors.black.withAlpha(179),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(
@@ -457,7 +457,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           // 右側のボタン
                           Container(
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.5),
+                              color: Colors.black.withAlpha(128),
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: IconButton(

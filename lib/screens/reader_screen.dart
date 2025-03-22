@@ -8,7 +8,7 @@ import 'reader/reader_screen.dart' as reader;
 class ReaderScreen extends StatelessWidget {
   final Book book;
 
-  const ReaderScreen({Key? key, required this.book}) : super(key: key);
+  const ReaderScreen({super.key, required this.book});
 
   @override
   Widget build(BuildContext context) {

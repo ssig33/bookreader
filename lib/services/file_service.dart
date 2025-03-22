@@ -135,7 +135,7 @@ class FileService {
     if (!_initialized) await initialize();
 
     final files = await _appFilesDir.list().toList();
-    return files.where((entity) => entity is File).toList();
+    return files.whereType<File>().toList();
   }
 
   /// アプリの管理領域内のファイルの合計サイズを取得

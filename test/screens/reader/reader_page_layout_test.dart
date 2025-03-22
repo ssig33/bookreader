@@ -6,7 +6,7 @@ import 'package:book/screens/reader/reader_page_layout.dart';
 
 // ReaderImageLoaderのモック
 class MockReaderImageLoader extends ReaderImageLoader {
-  MockReaderImageLoader({required Book book}) : super(book: book);
+  MockReaderImageLoader({required super.book});
 
   bool _isLoading = false;
   final Map<int, double> _aspectRatios = {};
@@ -14,6 +14,7 @@ class MockReaderImageLoader extends ReaderImageLoader {
   @override
   bool get isLoading => _isLoading;
 
+  @override
   set isLoading(bool value) {
     _isLoading = value;
   }
@@ -86,7 +87,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Container(
+            body: SizedBox(
               width: 1000, // 横長の画面
               height: 600,
             ),
@@ -123,7 +124,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: Container(
+            body: SizedBox(
               width: 1000, // 横長の画面
               height: 600,
             ),

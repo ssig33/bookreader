@@ -18,15 +18,15 @@ class ReaderKeyboardHandler {
   });
 
   /// キーボードイベントを処理するメソッド
-  KeyEventResult handleKeyEvent(FocusNode node, RawKeyEvent event) {
+  KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
     // キーイベントの処理
 
-    if (event is RawKeyDownEvent) {
+    if (event is KeyDownEvent) {
       // 直接キーコードで比較
       final keyId = event.logicalKey.keyId;
       if (keyId == 106 || keyId == 0x0000006A) {
         // j のキーコード
-        if (event.isShiftPressed) {
+        if (HardwareKeyboard.instance.isShiftPressed) {
           // Shift+J: 見開きでも1ページだけ進む
           goToNextSinglePage();
         } else {
@@ -36,7 +36,7 @@ class ReaderKeyboardHandler {
         return KeyEventResult.handled;
       } else if (keyId == 107 || keyId == 0x0000006B) {
         // k のキーコード
-        if (event.isShiftPressed) {
+        if (HardwareKeyboard.instance.isShiftPressed) {
           // Shift+K: 見開きでも1ページだけ戻る
           goToPreviousSinglePage();
         } else {

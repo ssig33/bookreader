@@ -9,13 +9,13 @@ class BookListItem extends StatelessWidget {
   final Function(String)? onAddTag;
 
   const BookListItem({
-    Key? key,
+    super.key,
     required this.book,
     required this.onTap,
     this.onRename,
     this.onDelete,
     this.onAddTag,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
