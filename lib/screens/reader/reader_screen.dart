@@ -140,6 +140,91 @@ class _ReaderScreenState extends State<ReaderScreen> {
     // デバッグ情報
   }
 
+  /// ページ入力ダイアログを表示
+  void _showPageInputDialog() {
+    // 現在のページ番号を初期値として設定
+    final TextEditingController controller = TextEditingController(
+      text: '${_currentPage + 1}',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('ページ番号を入力'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'ページ番号',
+                  hintText: '1 - ${widget.book.totalPages}',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '全${widget.book.totalPages}ページ中',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () {
+                // 入力されたページ番号を取得
+                final pageText = controller.text.trim();
+                int? pageNumber = int.tryParse(pageText);
+
+                if (pageNumber != null) {
+                  // 1から始まるページ番号を0から始まるインデックスに変換
+                  pageNumber = pageNumber - 1;
+
+                  // 有効なページ番号かチェック
+                  if (pageNumber >= 0 && pageNumber < widget.book.totalPages) {
+                    // ダイアログを閉じる
+                    Navigator.pop(context);
+
+                    // 指定されたページに移動
+                    _navigation?.jumpToPage(pageNumber, _isRightToLeft);
+                  } else {
+                    // 無効なページ番号の場合はエラーメッセージを表示
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '有効なページ番号を入力してください (1-${widget.book.totalPages})',
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } else {
+                  // 数値以外が入力された場合はエラーメッセージを表示
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('数値を入力してください'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: const Text('移動'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// 隣接するページをプリロードする
   void _preloadAdjacentPages(int currentPage) {
     // ファイルタイプに応じて適切なローダーを使用
@@ -436,21 +521,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             ),
                           ),
 
-                          // ページ番号表示
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(179),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              widget.book.totalPages > 0
-                                  ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
-                                  : 'ページ ${_currentPage + 1}',
-                              style: const TextStyle(color: Colors.white),
+                          // ページ番号表示（タップでページ入力ダイアログを表示）
+                          GestureDetector(
+                            onTap: _showPageInputDialog,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha(179),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    widget.book.totalPages > 0
+                                        ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
+                                        : 'ページ ${_currentPage + 1}',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.edit,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
 

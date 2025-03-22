@@ -17,6 +17,87 @@ class ReaderNavigation {
     required this.pageLayout,
   });
 
+  /// 特定のページに直接ジャンプする
+  void jumpToPage(int pageNumber, bool isRightToLeft) {
+    if (pageNumber < 0 || pageNumber >= book.totalPages) {
+      // 範囲外のページ番号の場合は何もしない
+      return;
+    }
+
+    if (useDoublePage) {
+      // 見開き表示の場合、レイアウトインデックスを探す必要がある
+      int targetLayoutIndex = -1;
+
+      // ページ番号に対応するレイアウトインデックスを探す
+      for (int i = 0; i < pageLayout.length; i++) {
+        final layoutData = pageLayout[i];
+
+        if (layoutData < 65536) {
+          // シングルページの場合
+          if (layoutData == pageNumber) {
+            targetLayoutIndex = i;
+            break;
+          }
+        } else {
+          // ダブルページの場合
+          final leftPage = layoutData >> 16;
+          final rightPage = layoutData & 0xFFFF;
+
+          if (leftPage == pageNumber || rightPage == pageNumber) {
+            targetLayoutIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (targetLayoutIndex != -1) {
+        // 見つかったレイアウトインデックスにジャンプ
+        pageController.jumpToPage(targetLayoutIndex);
+      } else {
+        // 見つからない場合は、最も近いレイアウトインデックスにジャンプ
+        // 単純化のため、ページ番号に最も近いページを含むレイアウトを探す
+        int closestDistance = book.totalPages;
+        int closestLayoutIndex = 0;
+
+        for (int i = 0; i < pageLayout.length; i++) {
+          final layoutData = pageLayout[i];
+          int distance;
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            distance = (layoutData - pageNumber).abs();
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+            distance = min(
+              (leftPage - pageNumber).abs(),
+              (rightPage - pageNumber).abs(),
+            );
+          }
+
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestLayoutIndex = i;
+          }
+        }
+
+        pageController.jumpToPage(closestLayoutIndex);
+      }
+    } else {
+      // 通常の単一ページ表示の場合は直接ジャンプ
+      pageController.jumpToPage(pageNumber);
+    }
+
+    // 最後に読んだページを更新
+    updateLastReadPage(pageNumber);
+  }
+
+  /// min関数の実装
+  int min(int a, int b) {
+    return a < b ? a : b;
+  }
+
   /// 前のページに移動
   void goToPreviousPage() {
     if (pageController.page != null && pageController.page! > 0) {
