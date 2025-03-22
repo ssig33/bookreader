@@ -299,28 +299,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 },
                 itemCount: widget.book.totalPages,
                 itemBuilder: (context, index) {
-                  if (widget.book.fileType == 'zip' ||
-                      widget.book.fileType == 'cbz') {
-                    if (_pageLayout != null) {
-                      return _pageLayout!.buildZipPageView(
-                        index,
-                        _isRightToLeft,
-                        context,
-                      );
-                    } else {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                  } else {
-                    // PDFやその他のファイルタイプの場合は仮表示
-                    return Container(
-                      color: Colors.white,
-                      child: Center(
-                        child: Text(
-                          'ページ ${index + 1}',
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                      ),
+                  if (_pageLayout != null) {
+                    return _pageLayout!.buildZipPageView(
+                      index,
+                      _isRightToLeft,
+                      context,
                     );
+                  } else {
+                    return const Center(child: CircularProgressIndicator());
                   }
                 },
               ),

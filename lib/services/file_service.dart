@@ -174,8 +174,21 @@ class FileService {
 
   /// PDFファイルのページ数を取得
   Future<int> getPdfPageCount(String filePath) async {
-    // PDF機能は現在実装されていません
-    return 0;
+    if (!_initialized) await initialize();
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('File does not exist: $filePath');
+    }
+
+    try {
+      // PDFファイルのページ数を取得する処理は、
+      // PDFリーダー画面で実際にPDFを開いたときに行います
+      // ここでは仮の値として1を返します
+      return 1;
+    } catch (e) {
+      return 0; // エラーの場合は0を返す
+    }
   }
 
   /// ZIPファイル内の画像ファイル数を取得（ページ数として扱う）
@@ -224,6 +237,8 @@ class FileService {
   Future<int> getPageCount(String filePath, String fileType) async {
     if (fileType == 'zip' || fileType == 'cbz') {
       return await getZipPageCount(filePath);
+    } else if (fileType == 'pdf') {
+      return await getPdfPageCount(filePath);
     } else {
       throw Exception('Unsupported file type: $fileType');
     }
