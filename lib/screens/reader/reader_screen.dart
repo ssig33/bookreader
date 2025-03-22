@@ -143,29 +143,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// ページ入力ダイアログを表示
   void _showPageInputDialog() {
     // 現在のページ番号を初期値として設定
-    String initialPage;
-
-    if (_pageLayout != null &&
-        _pageLayout!.useDoublePage &&
-        _currentPage < _pageLayout!.pageLayout.length) {
-      // 見開きモードの場合、現在のレイアウトデータから実際のページ番号を取得
-      final currentPageData = _pageLayout!.pageLayout[_currentPage];
-
-      if (currentPageData < 65536) {
-        // シングルページの場合
-        initialPage = '${currentPageData + 1}';
-      } else {
-        // ダブルページの場合は左ページを使用
-        final leftPage = currentPageData >> 16;
-        initialPage = '${leftPage + 1}';
-      }
-    } else {
-      // 単一ページモードまたはレイアウトが未初期化の場合は単純にインデックス+1を使用
-      initialPage = '${_currentPage + 1}';
-    }
-
     final TextEditingController controller = TextEditingController(
-      text: initialPage,
+      text: '${_currentPage + 1}',
     );
 
     showDialog(
@@ -408,29 +387,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  /// 現在表示中の実際のページ番号を取得するメソッド
-  String _getCurrentPageDisplay() {
-    if (_pageLayout == null ||
-        !_pageLayout!.useDoublePage ||
-        _currentPage >= _pageLayout!.pageLayout.length) {
-      // 単一ページモードまたはレイアウトが未初期化の場合は単純にインデックス+1を返す
-      return '${_currentPage + 1}';
-    }
-
-    // 見開きモードの場合、現在のレイアウトデータから実際のページ番号を取得
-    final currentPageData = _pageLayout!.pageLayout[_currentPage];
-
-    if (currentPageData < 65536) {
-      // シングルページの場合
-      return '${currentPageData + 1}';
-    } else {
-      // ダブルページの場合
-      final leftPage = currentPageData >> 16;
-      final rightPage = currentPageData & 0xFFFF;
-      return '${leftPage + 1}-${rightPage + 1}';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -543,7 +499,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                   ),
                                   if (widget.book.totalPages > 0)
                                     Text(
-                                      'ページ: ${_getCurrentPageDisplay()} / ${widget.book.totalPages}',
+                                      'ページ: ${_currentPage + 1} / ${widget.book.totalPages}',
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 12,
@@ -676,8 +632,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                     children: [
                                       Text(
                                         widget.book.totalPages > 0
-                                            ? 'ページ ${_getCurrentPageDisplay()} / ${widget.book.totalPages}'
-                                            : 'ページ ${_getCurrentPageDisplay()}',
+                                            ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
+                                            : 'ページ ${_currentPage + 1}',
                                         style: const TextStyle(
                                           color: Colors.white,
                                         ),

@@ -110,13 +110,10 @@ class ReaderNavigation {
 
   /// 次のページに移動
   void goToNextPage() {
-    if (pageController.page != null &&
-        pageController.page! < book.totalPages - 1) {
-      pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+    pageController.nextPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   /// 最後に読んだページを更新
