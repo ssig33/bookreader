@@ -145,14 +145,56 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         widget.book.filePath,
         params: PdfViewerParams(
           layoutPages: (pages, params) {
-            final width = pages.fold(
+            // 画面サイズを取得
+            final screenSize = MediaQuery.of(context).size;
+            // 余白を考慮した実際の表示領域
+            final viewportWidth = screenSize.width - (params.margin * 3);
+            final viewportHeight = screenSize.height - (params.margin * 2);
+
+            // 最大ページ幅を計算
+            final maxPageWidth = pages.fold(
               0.0,
               (prev, page) => max(prev, page.width),
             );
 
+            // 見開きページの合計幅（2ページ分）
+            final totalSpreadWidth = maxPageWidth * 2;
+
+            // スケーリング係数を計算（幅に基づく）
+            double scaleFactor = viewportWidth / totalSpreadWidth;
+
             final pageLayouts = <Rect>[];
             final offset = _needCoverPage ? 1 : 0;
             double y = params.margin;
+
+            // ページペアごとの最大高さを事前計算
+            final pairMaxHeights = <double>[];
+            for (int i = 0; i < pages.length; i += 2) {
+              final page1 = pages[i];
+              final page2 = (i + 1 < pages.length) ? pages[i + 1] : null;
+              final maxHeight =
+                  page2 != null
+                      ? max(page1.height, page2.height)
+                      : page1.height;
+              pairMaxHeights.add(maxHeight);
+            }
+
+            // 全ページペアの合計高さを計算
+            final totalContentHeight = pairMaxHeights.fold(
+              0.0,
+              (prev, height) => prev + height + params.margin,
+            );
+
+            // 高さに基づくスケーリング係数を計算
+            final heightScaleFactor = viewportHeight / totalContentHeight;
+
+            // 幅と高さの両方に基づいて、より小さいスケーリング係数を選択
+            // これにより、コンテンツが画面に収まることを保証
+            scaleFactor = min(scaleFactor, heightScaleFactor);
+
+            // スケーリングされたページ幅
+            final scaledMaxPageWidth = maxPageWidth * scaleFactor;
+
             for (int i = 0; i < pages.length; i++) {
               final page = pages[i];
               final pos = i + offset;
@@ -165,24 +207,30 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ? max(page.height, pages[otherSide].height)
                       : page.height;
 
+              // ページをスケーリング
+              final scaledPageWidth = page.width * scaleFactor;
+              final scaledPageHeight = page.height * scaleFactor;
+              final scaledH = h * scaleFactor;
+
               pageLayouts.add(
                 Rect.fromLTWH(
                   isLeft
-                      ? width + params.margin - page.width
-                      : params.margin * 2 + width,
-                  y + (h - page.height) / 2,
-                  page.width,
-                  page.height,
+                      ? scaledMaxPageWidth + params.margin - scaledPageWidth
+                      : params.margin * 2 + scaledMaxPageWidth,
+                  y + (scaledH - scaledPageHeight) / 2,
+                  scaledPageWidth,
+                  scaledPageHeight,
                 ),
               );
               if (pos & 1 == 1 || i + 1 == pages.length) {
-                y += h + params.margin;
+                y += scaledH + params.margin;
               }
             }
+
             return PdfPageLayout(
               pageLayouts: pageLayouts,
               documentSize: Size(
-                (params.margin + width) * 2 + params.margin,
+                (params.margin + scaledMaxPageWidth) * 2 + params.margin,
                 y,
               ),
             );
