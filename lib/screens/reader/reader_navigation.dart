@@ -79,22 +79,17 @@ class ReaderNavigation {
       final targetPage = currentPage + (direction * 2);
 
       if (targetPage >= 0 && targetPage < book.totalPages) {
-        pageController.animateToPage(
-          targetPage,
-          // 見開きモードでは2ページ分移動するため、アニメーション時間を短くして
-          // よりスムーズな曲線を使用することでちらつきを軽減
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+        // 見開きモードではアニメーションを使用せず、即座にページ遷移
+        pageController.jumpToPage(targetPage);
       }
     } else {
       // 単一ページ表示の場合は1ページ分移動
       final targetPage = currentPage + direction;
 
       if (targetPage >= 0 && targetPage < book.totalPages) {
+        // 単一ページ表示の場合はアニメーションを維持
         pageController.animateToPage(
           targetPage,
-          // 単一ページ表示の場合も同様にアニメーションを最適化
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );

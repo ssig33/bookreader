@@ -142,20 +142,25 @@ class ReaderImageLoader {
                     maxWidth: MediaQuery.of(context).size.width / 2,
                   )
                   : null,
-          child: AnimatedSwitcher(
-            // 見開きモードではアニメーション時間を短くして、ちらつきを軽減
-            duration:
-                useDoublePage
-                    ? const Duration(milliseconds: 50) // 見開きモードでは短く
-                    : const Duration(milliseconds: 200), // 通常モードは現状維持
-            child: Image.memory(
-              snapshot.data!,
-              key: ValueKey<int>(pageIndex), // キーを指定して異なる画像と認識させる
-              fit: BoxFit.contain,
-              // 画像の境界線を削除
-              gaplessPlayback: true,
-            ),
-          ),
+          child:
+              useDoublePage
+                  // 見開きモードではアニメーションを使用しない
+                  ? Image.memory(
+                    snapshot.data!,
+                    key: ValueKey<int>(pageIndex),
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                  )
+                  // 通常モードではアニメーションを維持
+                  : AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Image.memory(
+                      snapshot.data!,
+                      key: ValueKey<int>(pageIndex),
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
+                  ),
         );
       },
     );

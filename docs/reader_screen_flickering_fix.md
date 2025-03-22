@@ -12,21 +12,38 @@
    - `Curves.easeInOut`は始点と終点の両方で減速するため、視覚的にちらつきを感じやすい
 
 ## 実装した修正
-1. **見開きモード専用のアニメーション調整** (`reader_image_loader.dart`):
+1. **見開きモード時のアニメーション削除** (`reader_image_loader.dart`):
    ```dart
-   AnimatedSwitcher(
-     // 見開きモードではアニメーション時間を短くして、ちらつきを軽減
-     duration: useDoublePage 
-       ? const Duration(milliseconds: 50)  // 見開きモードでは短く
-       : const Duration(milliseconds: 200), // 通常モードは現状維持
-     child: Image.memory(...)
-   )
+   child: useDoublePage
+     // 見開きモードではアニメーションを使用しない
+     ? Image.memory(
+         snapshot.data!,
+         key: ValueKey<int>(pageIndex),
+         fit: BoxFit.contain,
+         gaplessPlayback: true,
+       )
+     // 通常モードではアニメーションを維持
+     : AnimatedSwitcher(
+         duration: const Duration(milliseconds: 200),
+         child: Image.memory(
+           snapshot.data!,
+           key: ValueKey<int>(pageIndex),
+           fit: BoxFit.contain,
+           gaplessPlayback: true,
+         ),
+       ),
    ```
 
-2. **ページ遷移アニメーションの最適化** (`reader_navigation.dart`):
-   - アニメーション時間を300ミリ秒から200ミリ秒に短縮
-   - アニメーションカーブを`Curves.easeInOut`から`Curves.easeOut`に変更
+2. **見開きモード時のページ遷移アニメーション削除** (`reader_navigation.dart`):
+   - 見開きモード時はアニメーションを使用せず、即座にページ遷移
    ```dart
+   // 見開きモードではアニメーションを使用せず、即座にページ遷移
+   pageController.jumpToPage(targetPage);
+   ```
+   
+   - 通常モードではアニメーションを維持
+   ```dart
+   // 単一ページ表示の場合はアニメーションを維持
    pageController.animateToPage(
      targetPage,
      duration: const Duration(milliseconds: 200),
