@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
 import 'reader_image_loader.dart';
@@ -343,15 +342,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         currentRealPage = currentPageData;
       } else {
         // ダブルページの場合は左ページを基準にする
-        // 左ページと右ページの両方を取得し、後で適切に処理する
-        final leftPage = currentPageData >> 16;
-        final rightPage = currentPageData & 0xFFFF;
-
-        // デフォルトでは左ページを使用
-        currentRealPage = leftPage;
-
-        // ログ出力（デバッグ用）
-        print('見開きモード: 左ページ=$leftPage, 右ページ=$rightPage, 選択=$currentRealPage');
+        currentRealPage = currentPageData >> 16;
       }
     } else {
       currentRealPage = currentLayoutIndex;
@@ -382,15 +373,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // 単一ページから見開きページに切り替わった場合
           // 現在のページを含むレイアウトインデックスを探す
           int targetLayoutIndex = 0;
-          bool foundMatch = false;
-
           for (int i = 0; i < _pageLayout!.pageLayout.length; i++) {
             final layoutData = _pageLayout!.pageLayout[i];
             if (layoutData < 65536) {
               // シングルページの場合
               if (layoutData == currentRealPage) {
                 targetLayoutIndex = i;
-                foundMatch = true;
                 break;
               }
             } else {
@@ -399,70 +387,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
               final rightPage = layoutData & 0xFFFF;
               if (leftPage == currentRealPage || rightPage == currentRealPage) {
                 targetLayoutIndex = i;
-                foundMatch = true;
-
-                // ログ出力（デバッグ用）
-                print(
-                  '見開きモードに切替: 左ページ=$leftPage, 右ページ=$rightPage, 選択=$currentRealPage, レイアウトインデックス=$targetLayoutIndex',
-                );
                 break;
               }
             }
           }
-
-          if (!foundMatch) {
-            // 一致するレイアウトが見つからない場合は、最も近いレイアウトを探す
-            int closestDistance = 1000000;
-
-            for (int i = 0; i < _pageLayout!.pageLayout.length; i++) {
-              final layoutData = _pageLayout!.pageLayout[i];
-              int distance;
-
-              if (layoutData < 65536) {
-                // シングルページの場合
-                distance = (layoutData - currentRealPage!).abs();
-              } else {
-                // ダブルページの場合
-                final leftPage = layoutData >> 16;
-                final rightPage = layoutData & 0xFFFF;
-                distance = min(
-                  (leftPage - currentRealPage!).abs(),
-                  (rightPage - currentRealPage).abs(),
-                );
-              }
-
-              if (distance < closestDistance) {
-                closestDistance = distance;
-                targetLayoutIndex = i;
-              }
-            }
-
-            // ログ出力（デバッグ用）
-            print(
-              '見開きモードに切替: 一致するレイアウトが見つからないため最も近いレイアウトを使用: インデックス=$targetLayoutIndex, 距離=$closestDistance',
-            );
-          }
-
           _pageController = PageController(initialPage: targetLayoutIndex);
           _currentPage = targetLayoutIndex;
         } else {
           // 見開きページから単一ページに切り替わった場合
-          // 現在のレイアウトインデックスから実際のページ番号を取得
-          if (currentRealPage != null) {
-            // 単ページモードでは実際のページ番号をそのまま使用
-            _pageController = PageController(initialPage: currentRealPage);
-            _currentPage = currentRealPage;
-
-            // ログ出力（デバッグ用）
-            print('単ページモードに切替: 表示ページ=$currentRealPage');
-
-            // 最後に読んだページを更新
-            _navigation?.updateLastReadPage(currentRealPage);
-          } else {
-            // 何らかの理由で現在のページが取得できなかった場合
-            _pageController = PageController(initialPage: 0);
-            _currentPage = 0;
-          }
+          _pageController = PageController(initialPage: currentRealPage);
+          _currentPage = currentRealPage;
         }
       } else {
         // 何らかの理由で現在のページが取得できなかった場合

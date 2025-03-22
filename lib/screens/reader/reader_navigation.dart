@@ -100,7 +100,7 @@ class ReaderNavigation {
 
   /// 前のページに移動
   void goToPreviousPage() {
-    if (pageController.hasClients) {
+    if (pageController.page != null && pageController.page! > 0) {
       pageController.previousPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -110,7 +110,8 @@ class ReaderNavigation {
 
   /// 次のページに移動
   void goToNextPage() {
-    if (pageController.hasClients) {
+    if (pageController.page != null &&
+        pageController.page! < book.totalPages - 1) {
       pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
