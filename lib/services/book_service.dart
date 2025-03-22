@@ -47,7 +47,6 @@ class BookService {
         final List<dynamic> jsonList = json.decode(jsonString);
         _books = jsonList.map((json) => Book.fromMap(json)).toList();
       } catch (e) {
-        print('JSONファイルの読み込みエラー: $e');
         // エラーが発生した場合は空のリストで初期化
         _books = [];
       }
@@ -65,7 +64,7 @@ class BookService {
     try {
       await file.writeAsString(jsonString);
     } catch (e) {
-      print('JSONファイルの保存エラー: $e');
+      // エラー処理
     }
   }
 
@@ -114,7 +113,6 @@ class BookService {
     try {
       totalPages = await _fileService.getPageCount(managedFilePath, fileType);
     } catch (e) {
-      print('ページ数取得エラー: $e');
       // エラーが発生しても処理を続行
     }
 
@@ -164,7 +162,6 @@ class BookService {
       try {
         await _fileService.deleteFile(book.filePath);
       } catch (e) {
-        print('ファイル削除エラー: $e');
         // ファイル削除に失敗しても、リストからは削除する
       }
 
@@ -306,7 +303,6 @@ class BookService {
             _books[i] = book.copyWith(totalPages: totalPages);
           }
         } catch (e) {
-          print('ページ数更新エラー (${book.title}): $e');
           // エラーが発生しても処理を続行
         }
       }

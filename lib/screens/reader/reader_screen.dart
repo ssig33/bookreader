@@ -40,7 +40,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _currentPage = widget.book.lastReadPage;
     _isRightToLeft = widget.book.isRightToLeft; // 初期値を設定
     _pageController = PageController(initialPage: _currentPage);
-    print('初期化: 読み方向=${_isRightToLeft ? "右から左" : "左から右"}');
 
     // ファイルタイプに応じて適切なローダーを初期化
     if (widget.book.fileType == 'zip' || widget.book.fileType == 'cbz') {
@@ -97,7 +96,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
         // 状態を更新
       });
     } catch (e) {
-      print('ZIP画像読み込みエラー: $e');
       setState(() {
         // エラー状態を設定
       });
@@ -139,23 +137,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ページコントローラーの状態をデバッグ出力
   void _debugPageController() {
-    print('--- PageController デバッグ情報 ---');
-    print('現在のページ: $_currentPage');
-    print('PageController.page: ${_pageController.page}');
-    print('PageController.position.pixels: ${_pageController.position.pixels}');
-    print(
-      'PageController.position.maxScrollExtent: ${_pageController.position.maxScrollExtent}',
-    );
-    print(
-      'PageController.position.viewportDimension: ${_pageController.position.viewportDimension}',
-    );
-    print(
-      'PageController.position.haveDimensions: ${_pageController.position.haveDimensions}',
-    );
-    print('_pageLayout?.pageLayout: ${_pageLayout?.pageLayout}');
-    print('_pageLayout?.useDoublePage: ${_pageLayout?.useDoublePage}');
-    print('_isRightToLeft: $_isRightToLeft');
-    print('--------------------------------');
+    // デバッグ情報
   }
 
   /// 隣接するページをプリロードする
@@ -224,14 +206,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
           currentPage + 2,
         ]);
       }
-
       // 重複を削除し、範囲内のページのみをプリロード
       final uniquePages =
           pagesToPreload.toSet().toList()
             ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
 
-      print('プリロードするページ: $uniquePages');
-
+      // 各ページをプリロード
       // 各ページをプリロード
       for (final page in uniquePages) {
         _imageLoader!.preloadPage(page);
@@ -363,39 +343,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
                             style: const TextStyle(color: Colors.white),
                           ),
                           onPressed: () async {
-                            print('読み方向切り替えボタンが押されました');
-                            print(
-                              '現在の読み方向: ${_isRightToLeft ? "右から左" : "左から右"}',
-                            );
-
                             try {
                               // サービスで本の読み方向を切り替え
                               final updatedBook = await _bookService
                                   .toggleReadingDirection(widget.book.id);
 
-                              print(
-                                '更新後の読み方向: ${updatedBook.isRightToLeft ? "右から左" : "左から右"}',
-                              );
-
                               // 現在のページを保存
                               final currentPage = _currentPage;
-                              print('現在のページ: $currentPage');
 
                               // ローカル状態と PageController を更新
                               setState(() {
-                                print('setState呼び出し');
                                 // ローカル状態を更新
                                 _isRightToLeft = updatedBook.isRightToLeft;
-                                print(
-                                  'ローカル状態を更新: _isRightToLeft=$_isRightToLeft',
-                                );
 
                                 // PageControllerを再作成
                                 _pageController.dispose();
                                 _pageController = PageController(
                                   initialPage: currentPage,
                                 );
-                                print('PageController再作成完了');
 
                                 // ナビゲーションを更新
                                 _navigation = ReaderNavigation(
@@ -406,7 +371,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 );
                               });
                             } catch (e) {
-                              print('エラー発生: $e');
+                              // エラー処理
                             }
                           },
                           style: TextButton.styleFrom(

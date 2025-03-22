@@ -216,7 +216,6 @@ class FileService {
 
       return imageCount;
     } catch (e) {
-      print('ZIPページ数取得エラー: $e');
       return 0; // エラーの場合は0を返す
     }
   }
@@ -306,7 +305,6 @@ class FileService {
 
       return imagePaths;
     } catch (e) {
-      print('ZIP画像抽出エラー: $e');
       return [];
     }
   }
@@ -335,7 +333,6 @@ class FileService {
 
       return null;
     } catch (e) {
-      print('ZIP画像取得エラー: $e');
       return null;
     }
   }
@@ -346,7 +343,6 @@ class FileService {
       final decodedImage = await decodeImageFromList(imageData);
       return decodedImage.width / decodedImage.height;
     } catch (e) {
-      print('画像アスペクト比取得エラー: $e');
       return null;
     }
   }
@@ -385,7 +381,7 @@ class FileService {
         }
       }
     } catch (e) {
-      print('キャッシュクリアエラー: $e');
+      // エラー処理
     }
   }
 
@@ -404,7 +400,7 @@ class FileService {
         await cacheDir.delete(recursive: true);
       }
     } catch (e) {
-      print('本キャッシュクリアエラー: $e');
+      // エラー処理
     }
   }
 
