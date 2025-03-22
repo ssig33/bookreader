@@ -143,7 +143,11 @@ class ReaderImageLoader {
                   )
                   : null,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
+            // 見開きモードではアニメーション時間を短くして、ちらつきを軽減
+            duration:
+                useDoublePage
+                    ? const Duration(milliseconds: 50) // 見開きモードでは短く
+                    : const Duration(milliseconds: 200), // 通常モードは現状維持
             child: Image.memory(
               snapshot.data!,
               key: ValueKey<int>(pageIndex), // キーを指定して異なる画像と認識させる

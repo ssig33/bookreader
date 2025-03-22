@@ -43,8 +43,8 @@ class ReaderNavigation {
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         pageController.previousPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
         );
       }
     }
@@ -61,8 +61,8 @@ class ReaderNavigation {
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
         );
       }
     }
@@ -81,8 +81,10 @@ class ReaderNavigation {
       if (targetPage >= 0 && targetPage < book.totalPages) {
         pageController.animateToPage(
           targetPage,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          // 見開きモードでは2ページ分移動するため、アニメーション時間を短くして
+          // よりスムーズな曲線を使用することでちらつきを軽減
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
         );
       }
     } else {
@@ -92,8 +94,9 @@ class ReaderNavigation {
       if (targetPage >= 0 && targetPage < book.totalPages) {
         pageController.animateToPage(
           targetPage,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          // 単一ページ表示の場合も同様にアニメーションを最適化
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
         );
       }
     }
