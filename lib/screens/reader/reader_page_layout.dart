@@ -8,79 +8,47 @@ class ReaderPageLayout {
   final ReaderImageLoader imageLoader;
 
   bool useDoublePage = false;
-  List<int> pageLayout = []; // シングルページまたはダブルページのレイアウト
 
   ReaderPageLayout({required this.book, required this.imageLoader});
 
-  /// 画像のアスペクト比を分析して見開きレイアウトを決定
+  /// 画面のアスペクト比を確認して見開きモードが可能かどうかを判断
   Future<void> determinePageLayout(BuildContext context) async {
-    final totalPages = book.totalPages;
-    pageLayout = List.generate(totalPages, (index) => index);
-
     // 画面のアスペクト比を取得
     final screenSize = MediaQuery.of(context).size;
     final screenAspect = screenSize.width / screenSize.height;
 
-    // 見開き表示が可能かどうかを判断
-    if (screenAspect >= 1.2) {
-      // 横長の画面の場合
-      List<double?> aspectRatios = [];
-
-      // 最初の10ページ（または全ページ）のアスペクト比を取得
-      final pagesToCheck = totalPages > 10 ? 10 : totalPages;
-      for (int i = 0; i < pagesToCheck; i++) {
-        final aspect = await imageLoader.getImageAspectRatio(i);
-        aspectRatios.add(aspect);
-      }
-
-      // アスペクト比の平均を計算
-      double avgAspect = 0;
-      int validCount = 0;
-      for (final aspect in aspectRatios) {
-        if (aspect != null) {
-          avgAspect += aspect;
-          validCount++;
-        }
-      }
-
-      if (validCount > 0) {
-        avgAspect /= validCount;
-
-        // 平均アスペクト比が縦長（0.8未満）の場合、見開き表示を有効にする
-        if (avgAspect < 0.8) {
-          useDoublePage = true;
-
-          // 見開きページレイアウトを作成
-          createDoublePageLayout(totalPages);
-        }
-      }
-    }
+    // 横長の画面の場合のみ見開き表示を有効にする
+    useDoublePage = screenAspect >= 1.2;
   }
 
-  /// 見開きページレイアウトを作成
-  void createDoublePageLayout(int totalPages) {
-    pageLayout = [];
+  /// テスト用に見開きモードをリセット
+  void resetDoublePageMode() {
+    useDoublePage = false;
+  }
 
-    // 最初のページは単独表示
-    pageLayout.add(0);
-
-    // 残りのページを2ページずつグループ化
-    // 右から左への読み方向の場合は、偶数ページが左、奇数ページが右になるように組み合わせる
-    for (int i = 1; i < totalPages; i += 2) {
-      if (i + 1 < totalPages) {
-        // 2ページを組み合わせる
-        // 右から左の場合は順序を入れ替える必要はない（表示時に対応）
-        pageLayout.add((i << 16) | (i + 1));
-      } else {
-        // 最後の1ページが余る場合は単独表示
-        pageLayout.add(i);
-      }
+  /// 現在のページと次のページが両方とも縦長かどうかを確認
+  Future<bool> canShowDoublePage(int currentPage, int nextPage) async {
+    // 次のページが存在しない場合は単一ページ表示
+    if (nextPage >= book.totalPages) {
+      return false;
     }
+
+    // 現在のページと次のページのアスペクト比を取得
+    final currentAspect = await imageLoader.getImageAspectRatio(currentPage);
+    final nextAspect = await imageLoader.getImageAspectRatio(nextPage);
+
+    // どちらかのアスペクト比が取得できない場合は単一ページ表示
+    if (currentAspect == null || nextAspect == null) {
+      return false;
+    }
+
+    // 両方のページが縦長（アスペクト比が0.8未満）の場合のみ見開き表示
+    return currentAspect < 0.8 && nextAspect < 0.8;
   }
 
   /// ZIPファイルのページを表示するウィジェットを構築
   Widget buildZipPageView(
-    int layoutIndex,
+    int pageIndex,
     bool isRightToLeft,
     BuildContext context,
   ) {
@@ -88,56 +56,68 @@ class ReaderPageLayout {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // 見開きモードが有効な場合は、現在のページと次のページが両方とも縦長かどうかを確認
     if (useDoublePage) {
-      // 見開きページの場合
-      final pageData = pageLayout[layoutIndex];
+      // 次のページのインデックスを計算
+      final nextPageIndex = pageIndex + 1;
 
-      if (pageData < 65536) {
-        // シングルページの場合
-        return imageLoader.buildSinglePageView(
-          pageData,
-          useDoublePage,
-          context,
-        );
-      } else {
-        // ダブルページの場合
-        final leftPage = pageData >> 16;
-        final rightPage = pageData & 0xFFFF;
+      // 次のページが存在するかチェック
+      if (nextPageIndex < book.totalPages) {
+        // FutureBuilderを使用して非同期でアスペクト比をチェック
+        return FutureBuilder<bool>(
+          future: canShowDoublePage(pageIndex, nextPageIndex),
+          builder: (context, snapshot) {
+            // データがロード中の場合はローディングインジケータを表示
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        // 読み方向に応じてページの順序を決定
-        final firstPage = isRightToLeft ? rightPage : leftPage;
-        final secondPage = isRightToLeft ? leftPage : rightPage;
+            // 見開き表示が可能な場合
+            if (snapshot.hasData && snapshot.data == true) {
+              // 読み方向に応じてページの順序を決定
+              final firstPage = isRightToLeft ? nextPageIndex : pageIndex;
+              final secondPage = isRightToLeft ? pageIndex : nextPageIndex;
 
-        return Container(
-          color: Colors.black,
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 余白なしでページを並べる
-                imageLoader.buildSinglePageView(
-                  firstPage,
-                  useDoublePage,
-                  context,
+              return Container(
+                color: Colors.black,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 余白なしでページを並べる
+                      imageLoader.buildSinglePageView(
+                        firstPage,
+                        true, // 見開きモード
+                        context,
+                      ),
+                      // 中央の境界線を削除し、ページをぴったりくっつける
+                      imageLoader.buildSinglePageView(
+                        secondPage,
+                        true, // 見開きモード
+                        context,
+                      ),
+                    ],
+                  ),
                 ),
-                // 中央の境界線を削除し、ページをぴったりくっつける
-                imageLoader.buildSinglePageView(
-                  secondPage,
-                  useDoublePage,
-                  context,
-                ),
-              ],
-            ),
-          ),
+              );
+            }
+
+            // 見開き表示ができない場合は単一ページ表示
+            return imageLoader.buildSinglePageView(
+              pageIndex,
+              false, // 単一ページモード
+              context,
+            );
+          },
         );
       }
-    } else {
-      // 通常の単一ページ表示
-      return imageLoader.buildSinglePageView(
-        layoutIndex,
-        useDoublePage,
-        context,
-      );
     }
+
+    // 見開きモードが無効または次のページが存在しない場合は単一ページ表示
+    return imageLoader.buildSinglePageView(
+      pageIndex,
+      false, // 単一ページモード
+      context,
+    );
   }
 }
