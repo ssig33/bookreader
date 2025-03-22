@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
-import 'reader_page_layout.dart';
 
 /// ページナビゲーション機能を担当するクラス
 class ReaderNavigation {
   final Book book;
   final PageController pageController;
-  final ReaderPageLayout pageLayout;
+  final bool useDoublePage;
+  final List<int> pageLayout;
   final BookService _bookService = BookService();
 
   ReaderNavigation({
     required this.book,
     required this.pageController,
+    required this.useDoublePage,
     required this.pageLayout,
   });
 
@@ -23,68 +24,78 @@ class ReaderNavigation {
       return;
     }
 
-    // 見開きモードでない場合は直接ジャンプ
-    if (!pageLayout.useDoublePage) {
+    if (useDoublePage) {
+      // 見開き表示の場合、レイアウトインデックスを探す必要がある
+      int targetLayoutIndex = -1;
+
+      // ページ番号に対応するレイアウトインデックスを探す
+      for (int i = 0; i < pageLayout.length; i++) {
+        final layoutData = pageLayout[i];
+
+        if (layoutData < 65536) {
+          // シングルページの場合
+          if (layoutData == pageNumber) {
+            targetLayoutIndex = i;
+            break;
+          }
+        } else {
+          // ダブルページの場合
+          final leftPage = layoutData >> 16;
+          final rightPage = layoutData & 0xFFFF;
+
+          if (leftPage == pageNumber || rightPage == pageNumber) {
+            targetLayoutIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (targetLayoutIndex != -1) {
+        // 見つかったレイアウトインデックスにジャンプ
+        pageController.jumpToPage(targetLayoutIndex);
+      } else {
+        // 見つからない場合は、最も近いレイアウトインデックスにジャンプ
+        // 単純化のため、ページ番号に最も近いページを含むレイアウトを探す
+        int closestDistance = book.totalPages;
+        int closestLayoutIndex = 0;
+
+        for (int i = 0; i < pageLayout.length; i++) {
+          final layoutData = pageLayout[i];
+          int distance;
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            distance = (layoutData - pageNumber).abs();
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+            distance = min(
+              (leftPage - pageNumber).abs(),
+              (rightPage - pageNumber).abs(),
+            );
+          }
+
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestLayoutIndex = i;
+          }
+        }
+
+        pageController.jumpToPage(closestLayoutIndex);
+      }
+    } else {
+      // 通常の単一ページ表示の場合は直接ジャンプ
       pageController.jumpToPage(pageNumber);
-      updateLastReadPage(pageNumber);
-      return;
     }
 
-    // 最初のページ（表紙）の場合は直接ジャンプ
-    if (pageNumber == 0) {
-      pageController.jumpToPage(0);
-      updateLastReadPage(0);
-      return;
-    }
-
-    // 見開きモードの場合、ページ番号に対応するページインデックスを探す
-    _findPageIndexAndJump(pageNumber);
+    // 最後に読んだページを更新
+    updateLastReadPage(pageNumber);
   }
 
-  /// ページ番号に対応するページインデックスを探してジャンプする
-  Future<void> _findPageIndexAndJump(int pageNumber) async {
-    // 現在のページから順に探索
-    int currentIndex = pageController.page?.round() ?? 0;
-
-    // 前方向に探索
-    for (int i = currentIndex; i < book.totalPages; i++) {
-      final currentAspect = await pageLayout.imageLoader.getImageAspectRatio(i);
-      final nextAspect =
-          i + 1 < book.totalPages
-              ? await pageLayout.imageLoader.getImageAspectRatio(i + 1)
-              : null;
-
-      if (i == pageNumber) {
-        // 目的のページに到達
-        pageController.jumpToPage(i);
-        updateLastReadPage(i);
-        return;
-      } else if (i < pageNumber &&
-          currentAspect != null &&
-          currentAspect < 0.8 &&
-          nextAspect != null &&
-          nextAspect < 0.8 &&
-          i + 1 == pageNumber) {
-        // 見開きページの右側が目的のページ
-        pageController.jumpToPage(i);
-        updateLastReadPage(i);
-        return;
-      }
-    }
-
-    // 後方向に探索
-    for (int i = currentIndex - 1; i >= 0; i--) {
-      if (i == pageNumber) {
-        // 目的のページに到達
-        pageController.jumpToPage(i);
-        updateLastReadPage(i);
-        return;
-      }
-    }
-
-    // 見つからない場合は直接ジャンプ
-    pageController.jumpToPage(pageNumber);
-    updateLastReadPage(pageNumber);
+  /// min関数の実装
+  int min(int a, int b) {
+    return a < b ? a : b;
   }
 
   /// 前のページに移動
@@ -113,30 +124,162 @@ class ReaderNavigation {
   }
 
   /// 相対的なページ移動を行う（見開き表示でも1ページだけ移動）
-  Future<void> navigateToRelativePage(
+  void navigateToRelativePage(
     int direction,
     int currentPage,
     bool isRightToLeft,
-  ) async {
+  ) {
     try {
-      if (pageLayout.useDoublePage) {
-        // 見開きモードの場合
+      if (useDoublePage) {
+        // 見開き表示の場合
+        final currentLayoutIndex = currentPage;
+
+        if (currentLayoutIndex >= pageLayout.length) {
+          return;
+        }
+
+        final currentPageData = pageLayout[currentLayoutIndex];
+
+        // 現在表示中の実際のページ番号を取得
+        List<int> currentPages = [];
+        if (currentPageData < 65536) {
+          // シングルページの場合
+          currentPages.add(currentPageData);
+        } else {
+          // ダブルページの場合
+          final leftPage = currentPageData >> 16;
+          final rightPage = currentPageData & 0xFFFF;
+          currentPages.add(leftPage);
+          currentPages.add(rightPage);
+        }
+
+        // 移動先のページ構成を計算
+        List<int> targetPages = [];
         if (direction > 0) {
           // 次のページへ
-          int nextPage = await pageLayout.getNextPageIndex(currentPage);
-          if (nextPage < book.totalPages) {
-            pageController.jumpToPage(nextPage);
+          if (currentPages.length == 1) {
+            // 現在シングルページの場合、次の2ページを表示
+            int nextPage = currentPages[0] + 1;
+            if (nextPage < book.totalPages) {
+              // 次のページが存在する場合
+              if (nextPage + 1 < book.totalPages) {
+                // 次の2ページを表示
+                targetPages.add(nextPage);
+                targetPages.add(nextPage + 1);
+              } else {
+                // 最後のページの場合は単独表示
+                targetPages.add(nextPage);
+              }
+            }
+          } else {
+            // 現在ダブルページの場合、右ページを左ページにして新しい右ページを表示
+            int rightPage = currentPages[1];
+            int newRightPage = rightPage + 1;
+            if (newRightPage < book.totalPages) {
+              // 次のページが存在する場合、右ページを左ページにして新しい右ページを表示
+              targetPages.add(rightPage);
+              targetPages.add(newRightPage);
+            } else if (rightPage < book.totalPages) {
+              // 最後のページの場合は単独表示
+              targetPages.add(rightPage);
+            }
           }
         } else {
           // 前のページへ
-          int prevPage = await pageLayout.getPreviousPageIndex(currentPage);
-          if (prevPage >= 0) {
-            pageController.jumpToPage(prevPage);
+          if (currentPages.length == 1) {
+            // 現在シングルページの場合、前の2ページを表示
+            int prevPage = currentPages[0] - 1;
+            if (prevPage >= 0) {
+              // 前のページが存在する場合
+              if (prevPage - 1 >= 0) {
+                // 前の2ページを表示
+                targetPages.add(prevPage - 1);
+                targetPages.add(prevPage);
+              } else {
+                // 最初のページの場合は単独表示
+                targetPages.add(prevPage);
+              }
+            }
+          } else {
+            // 現在ダブルページの場合、左ページを右ページにして新しい左ページを表示
+            int leftPage = currentPages[0];
+            int newLeftPage = leftPage - 1;
+            if (newLeftPage >= 0) {
+              targetPages.add(newLeftPage);
+              targetPages.add(leftPage);
+            } else if (leftPage >= 0) {
+              // 最初のページの場合は単独表示
+              targetPages.add(leftPage);
+            }
           }
         }
+
+        if (targetPages.isEmpty) {
+          return;
+        }
+
+        // 目標ページ構成に対応するレイアウトインデックスを探す
+        int targetIndex = -1;
+
+        // まず既存のレイアウトから探す
+        for (int i = 0; i < pageLayout.length; i++) {
+          final layoutData = pageLayout[i];
+
+          if (layoutData < 65536) {
+            // シングルページの場合
+            if (targetPages.length == 1 && layoutData == targetPages[0]) {
+              targetIndex = i;
+              break;
+            }
+          } else {
+            // ダブルページの場合
+            final leftPage = layoutData >> 16;
+            final rightPage = layoutData & 0xFFFF;
+
+            if (targetPages.length == 2 &&
+                leftPage == targetPages[0] &&
+                rightPage == targetPages[1]) {
+              targetIndex = i;
+              break;
+            }
+          }
+        }
+
+        // 既存のレイアウトに見つからない場合は、直接ページを表示する
+        if (targetIndex == -1) {
+          // 単一ページの場合
+          if (targetPages.length == 1) {
+            final targetPage = targetPages[0];
+
+            // 単一ページを直接表示
+
+            // ページに直接ジャンプ
+            pageController.jumpToPage(targetPage);
+            return;
+          } else if (targetPages.length == 2) {
+            // ダブルページの場合
+            final targetLeftPage = targetPages[0];
+            final targetRightPage = targetPages[1];
+
+            // 新しいレイアウトデータを作成
+            final newLayoutData = (targetLeftPage << 16) | targetRightPage;
+
+            // レイアウトに追加
+            pageLayout.add(newLayoutData);
+            targetIndex = pageLayout.length - 1;
+
+            // 新しいレイアウトを作成しました
+          } else {
+            return;
+          }
+        }
+
+        // 見つかったインデックスに移動
+        pageController.jumpToPage(targetIndex);
       } else {
         // 通常の単一ページ表示の場合は単純に移動
         final targetPage = currentPage + direction;
+
         if (targetPage >= 0 && targetPage < book.totalPages) {
           pageController.jumpToPage(targetPage);
         }

@@ -9,7 +9,6 @@ class Book {
   final int totalPages; // 総ページ数
   final DateTime addedAt;
   final DateTime? lastReadAt;
-  final Map<int, double>? aspectRatios; // ページごとのアスペクト比情報
 
   Book({
     required this.id,
@@ -22,7 +21,6 @@ class Book {
     this.totalPages = 0, // デフォルトは0（未取得）
     required this.addedAt,
     this.lastReadAt,
-    this.aspectRatios,
   });
 
   Book copyWith({
@@ -36,7 +34,6 @@ class Book {
     int? totalPages,
     DateTime? addedAt,
     DateTime? lastReadAt,
-    Map<int, double>? aspectRatios,
   }) {
     return Book(
       id: id ?? this.id,
@@ -49,16 +46,7 @@ class Book {
       totalPages: totalPages ?? this.totalPages,
       addedAt: addedAt ?? this.addedAt,
       lastReadAt: lastReadAt ?? this.lastReadAt,
-      aspectRatios: aspectRatios ?? this.aspectRatios,
     );
-  }
-
-  // アスペクト比を更新した新しいBookインスタンスを作成
-  Book copyWithAspectRatio(int pageIndex, double aspectRatio) {
-    final newAspectRatios = Map<int, double>.from(aspectRatios ?? {});
-    newAspectRatios[pageIndex] = aspectRatio;
-
-    return copyWith(aspectRatios: newAspectRatios);
   }
 
   Map<String, dynamic> toMap() {
@@ -73,22 +61,10 @@ class Book {
       'totalPages': totalPages,
       'addedAt': addedAt.millisecondsSinceEpoch,
       'lastReadAt': lastReadAt?.millisecondsSinceEpoch,
-      'aspectRatios': aspectRatios,
     };
   }
 
   factory Book.fromMap(Map<String, dynamic> map) {
-    // アスペクト比情報の変換（文字列キーをintに変換）
-    Map<int, double>? aspectRatiosMap;
-    if (map['aspectRatios'] != null) {
-      aspectRatiosMap = {};
-      (map['aspectRatios'] as Map).forEach((key, value) {
-        if (value is num) {
-          aspectRatiosMap![int.parse(key.toString())] = value.toDouble();
-        }
-      });
-    }
-
     return Book(
       id: map['id'],
       title: map['title'],
@@ -103,7 +79,6 @@ class Book {
           map['lastReadAt'] != null
               ? DateTime.fromMillisecondsSinceEpoch(map['lastReadAt'])
               : null,
-      aspectRatios: aspectRatiosMap,
     );
   }
 
