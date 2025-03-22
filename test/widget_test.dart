@@ -7,24 +7,38 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:book/screens/home_screen.dart';
 
-import 'package:book/main.dart';
+// サービスの初期化をモック化するためのテスト用のMyAppウィジェット
+class TestableMyApp extends StatelessWidget {
+  const TestableMyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Book',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      home: const HomeScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('アプリが正常に起動し、ホーム画面が表示される', (WidgetTester tester) async {
+    // テスト用のアプリウィジェットをビルド
+    await tester.pumpWidget(const TestableMyApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // ホーム画面のタイトルが表示されていることを確認
+    expect(find.text('ブックリーダー'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // 追加ボタンが表示されていることを確認（FloatingActionButtonとして）
+    expect(find.byType(FloatingActionButton), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // 初期状態では「ファイルがありません」というメッセージが表示されていることを確認
+    expect(find.text('ファイルがありません'), findsOneWidget);
   });
 }

@@ -90,6 +90,7 @@ void main() {
             body: SizedBox(
               width: 1000, // 横長の画面
               height: 600,
+              child: Container(),
             ),
           ),
         ),
@@ -127,6 +128,7 @@ void main() {
             body: SizedBox(
               width: 1000, // 横長の画面
               height: 600,
+              child: Container(),
             ),
           ),
         ),
