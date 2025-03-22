@@ -2,11 +2,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../models/book.dart';
 import '../../services/file_service.dart';
+import '../../services/book_service.dart';
 
 /// ZIP画像の読み込みと処理を担当するクラス
 class ReaderImageLoader {
   final FileService _fileService = FileService();
-  final Book book;
+  Book book; // finalを削除して更新可能にする
 
   // メモリ内画像キャッシュ
   bool isLoading = true;
@@ -157,12 +158,30 @@ class ReaderImageLoader {
     );
   }
 
-  /// 画像のアスペクト比を取得
+  /// 画像のアスペクト比を取得（Bookモデルのキャッシュを活用）
   Future<double?> getImageAspectRatio(int pageIndex) async {
-    // メモリキャッシュから画像を取得（なければディスクから読み込む）
+    // Bookモデルにアスペクト比情報がある場合はそれを使用
+    if (book.aspectRatios != null &&
+        book.aspectRatios!.containsKey(pageIndex)) {
+      return book.aspectRatios![pageIndex];
+    }
+
+    // なければ画像から計算
     final imageData = await getImageData(pageIndex);
     if (imageData != null) {
-      return await _fileService.getImageAspectRatio(imageData);
+      final aspectRatio = await _fileService.getImageAspectRatio(imageData);
+
+      // 計算したアスペクト比を保存（BookServiceを通じて）
+      if (aspectRatio != null) {
+        final bookService = BookService();
+        final updatedBook = book.copyWithAspectRatio(pageIndex, aspectRatio);
+        await bookService.updateBook(updatedBook);
+
+        // 更新された本の情報を反映
+        book = updatedBook;
+      }
+
+      return aspectRatio;
     }
     return null;
   }

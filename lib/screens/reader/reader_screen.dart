@@ -71,16 +71,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
         imageLoader: _imageLoader!,
       );
 
-      // 画像のアスペクト比を分析して見開きレイアウトを決定
+      // 画像のアスペクト比を分析して見開きモードを決定
       if (!mounted) return;
-      await _pageLayout!.determinePageLayout(context);
+      await _pageLayout!.determineDoublePage(context);
 
       // ナビゲーションを初期化
       _navigation = ReaderNavigation(
         book: widget.book,
         pageController: _pageController,
-        useDoublePage: _pageLayout!.useDoublePage,
-        pageLayout: _pageLayout!.pageLayout,
+        pageLayout: _pageLayout!,
       );
 
       // キーボードハンドラーを初期化
@@ -226,7 +225,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// 隣接するページをプリロードする
-  void _preloadAdjacentPages(int currentPage) {
+  Future<void> _preloadAdjacentPages(int currentPage) async {
     // ファイルタイプに応じて適切なローダーを使用
     final fileType = widget.book.fileType;
 
@@ -235,68 +234,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
       // 読み方向に応じてプリロードするページを決定
       final pagesToPreload = <int>[];
 
-      // 見開きページの場合は、レイアウトに基づいてプリロード
+      // 見開きページの場合は、現在のページと次のページのアスペクト比に基づいてプリロード
       if (_pageLayout != null && _pageLayout!.useDoublePage) {
-        // 現在のページレイアウトインデックスを取得
-        final currentLayoutIndex = currentPage;
+        // 現在のページをプリロード
+        pagesToPreload.add(currentPage);
 
-        // 前後のレイアウトインデックスを計算
-        final prevLayoutIndex = currentLayoutIndex - 1;
-        final nextLayoutIndex = currentLayoutIndex + 1;
-
-        // 前のレイアウトに含まれるページをプリロード
-        if (prevLayoutIndex >= 0 &&
-            prevLayoutIndex < _pageLayout!.pageLayout.length) {
-          final prevPageData = _pageLayout!.pageLayout[prevLayoutIndex];
-          if (prevPageData < 65536) {
-            // シングルページの場合
-            pagesToPreload.add(prevPageData);
-          } else {
-            // ダブルページの場合
-            pagesToPreload.add(prevPageData >> 16); // 左ページ
-            pagesToPreload.add(prevPageData & 0xFFFF); // 右ページ
-          }
+        // 次のページが存在する場合はプリロード
+        if (currentPage + 1 < widget.book.totalPages) {
+          pagesToPreload.add(currentPage + 1);
         }
 
-        // 次のレイアウトに含まれるページをプリロード
-        if (nextLayoutIndex >= 0 &&
-            nextLayoutIndex < _pageLayout!.pageLayout.length) {
-          final nextPageData = _pageLayout!.pageLayout[nextLayoutIndex];
-          if (nextPageData < 65536) {
-            // シングルページの場合
-            pagesToPreload.add(nextPageData);
-          } else {
-            // ダブルページの場合
-            pagesToPreload.add(nextPageData >> 16); // 左ページ
-            pagesToPreload.add(nextPageData & 0xFFFF); // 右ページ
-          }
+        // 前のページが存在する場合はプリロード
+        if (currentPage - 1 >= 0) {
+          pagesToPreload.add(currentPage - 1);
         }
 
-        // 現在のページも解析してプリロード（まだ読み込まれていない可能性があるため）
-        final currentPageData = _pageLayout!.pageLayout[currentLayoutIndex];
-        if (currentPageData >= 65536) {
-          // ダブルページの場合
-          pagesToPreload.add(currentPageData >> 16); // 左ページ
-          pagesToPreload.add(currentPageData & 0xFFFF); // 右ページ
-        } else {
-          // シングルページの場合
-          pagesToPreload.add(currentPageData);
+        // 次の次のページが存在する場合はプリロード
+        if (currentPage + 2 < widget.book.totalPages) {
+          pagesToPreload.add(currentPage + 2);
+        }
+
+        // 前の前のページが存在する場合はプリロード
+        if (currentPage - 2 >= 0) {
+          pagesToPreload.add(currentPage - 2);
         }
       } else {
         // 単一ページの場合は前後のページをプリロード
         pagesToPreload.addAll([
           currentPage - 2,
           currentPage - 1,
+          currentPage,
           currentPage + 1,
           currentPage + 2,
         ]);
       }
+
       // 重複を削除し、範囲内のページのみをプリロード
       final uniquePages =
           pagesToPreload.toSet().toList()
             ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
 
-      // 各ページをプリロード
       // 各ページをプリロード
       for (final page in uniquePages) {
         _imageLoader!.preloadPage(page);
@@ -332,11 +309,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   // 隣接ページをプリロード
                   _preloadAdjacentPages(page);
                 },
-                itemCount:
-                    _pageLayout != null && _pageLayout?.useDoublePage == true
-                        ? _pageLayout?.pageLayout.length ??
-                            widget.book.totalPages
-                        : widget.book.totalPages,
+                itemCount: widget.book.totalPages,
                 itemBuilder: (context, index) {
                   if (widget.book.fileType == 'zip' ||
                       widget.book.fileType == 'cbz') {
@@ -451,8 +424,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                                 _navigation = ReaderNavigation(
                                   book: widget.book,
                                   pageController: _pageController,
-                                  useDoublePage: _pageLayout!.useDoublePage,
-                                  pageLayout: _pageLayout!.pageLayout,
+                                  pageLayout: _pageLayout!,
                                 );
                               });
                             } catch (e) {
@@ -498,78 +470,61 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         ),
                       ),
 
+                      // ページめくりボタン
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          // 左側のボタン
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(128),
-                              borderRadius: BorderRadius.circular(24),
+                          // 前のページボタン
+                          ElevatedButton(
+                            onPressed: _goToPreviousPage,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withAlpha(179),
+                              foregroundColor: Colors.white,
+                              shape: const CircleBorder(),
+                              padding: const EdgeInsets.all(16),
                             ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.keyboard_arrow_left,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                              onPressed:
-                                  _isRightToLeft
-                                      ? _goToNextPage
-                                      : _goToPreviousPage,
-                              tooltip: _isRightToLeft ? '次のページ' : '前のページ',
+                            child: Icon(
+                              _isRightToLeft
+                                  ? Icons.arrow_forward
+                                  : Icons.arrow_back,
+                              size: 32,
                             ),
                           ),
 
-                          // ページ番号表示（タップでページ入力ダイアログを表示）
-                          GestureDetector(
-                            onTap: _showPageInputDialog,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withAlpha(179),
+                          // ページ番号入力ボタン
+                          ElevatedButton(
+                            onPressed: _showPageInputDialog,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withAlpha(179),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    widget.book.totalPages > 0
-                                        ? 'ページ ${_currentPage + 1} / ${widget.book.totalPages}'
-                                        : 'ページ ${_currentPage + 1}',
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.edit,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ],
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
+                            ),
+                            child: Text(
+                              '${_currentPage + 1} / ${widget.book.totalPages}',
+                              style: const TextStyle(fontSize: 16),
                             ),
                           ),
 
-                          // 右側のボタン
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(128),
-                              borderRadius: BorderRadius.circular(24),
+                          // 次のページボタン
+                          ElevatedButton(
+                            onPressed: _goToNextPage,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black.withAlpha(179),
+                              foregroundColor: Colors.white,
+                              shape: const CircleBorder(),
+                              padding: const EdgeInsets.all(16),
                             ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.keyboard_arrow_right,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                              onPressed:
-                                  _isRightToLeft
-                                      ? _goToPreviousPage
-                                      : _goToNextPage,
-                              tooltip: _isRightToLeft ? '前のページ' : '次のページ',
+                            child: Icon(
+                              _isRightToLeft
+                                  ? Icons.arrow_back
+                                  : Icons.arrow_forward,
+                              size: 32,
                             ),
                           ),
                         ],
