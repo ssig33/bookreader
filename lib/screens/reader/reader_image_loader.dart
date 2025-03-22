@@ -8,8 +8,7 @@ class ReaderImageLoader {
   final FileService _fileService = FileService();
   final Book book;
 
-  // ページ画像のキャッシュ
-  List<Uint8List?> _pageImages = [];
+  // メモリ内画像キャッシュ
   bool isLoading = true;
 
   // メモリ内画像キャッシュ
@@ -35,7 +34,6 @@ class ReaderImageLoader {
       }
 
       // 画像データを読み込む
-      _pageImages = List.filled(imagePaths.length, null);
 
       isLoading = false;
     } catch (e) {

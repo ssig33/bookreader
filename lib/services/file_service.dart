@@ -62,9 +62,7 @@ class FileService {
     final fileName = path.basenameWithoutExtension(sourcePath);
     final uniqueId = _uuid.v4().substring(0, 8);
     final newFileName = '${fileName}_$uniqueId$extension';
-
     final destinationPath = path.join(_appFilesDir.path, newFileName);
-    final destinationFile = File(destinationPath);
 
     try {
       await sourceFile.copy(destinationPath);

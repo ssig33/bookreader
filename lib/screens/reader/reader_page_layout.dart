@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/book.dart';
-import '../../services/file_service.dart';
 import 'reader_image_loader.dart';
 
 /// ページレイアウト（単一ページと見開きページ）の管理を担当するクラス
 class ReaderPageLayout {
   final Book book;
-  final FileService _fileService = FileService();
   final ReaderImageLoader imageLoader;
 
   bool useDoublePage = false;

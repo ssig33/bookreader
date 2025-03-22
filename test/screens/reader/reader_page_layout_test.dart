@@ -1,10 +1,8 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:book/models/book.dart';
 import 'package:book/screens/reader/reader_image_loader.dart';
 import 'package:book/screens/reader/reader_page_layout.dart';
-import 'package:book/services/file_service.dart';
 
 // ReaderImageLoaderのモック
 class MockReaderImageLoader extends ReaderImageLoader {
