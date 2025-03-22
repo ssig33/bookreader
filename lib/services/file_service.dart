@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart'; // For decodeImageFromList
@@ -177,31 +176,8 @@ class FileService {
 
   /// PDFファイルのページ数を取得
   Future<int> getPdfPageCount(String filePath) async {
-    if (!_initialized) await initialize();
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw Exception('File does not exist: $filePath');
-    }
-
-    try {
-      // PDFファイルをバイトとして読み込む
-      final bytes = await file.readAsBytes();
-
-      // PDFドキュメントを解析
-      final document = PdfDocument(inputBytes: bytes);
-
-      // ページ数を取得
-      final pageCount = document.pages.count;
-
-      // ドキュメントを閉じる
-      document.dispose();
-
-      return pageCount;
-    } catch (e) {
-      print('PDFページ数取得エラー: $e');
-      return 0; // エラーの場合は0を返す
-    }
+    // PDF機能は現在実装されていません
+    return 0;
   }
 
   /// ZIPファイル内の画像ファイル数を取得（ページ数として扱う）
@@ -249,9 +225,7 @@ class FileService {
 
   /// ファイルタイプに応じたページ数を取得
   Future<int> getPageCount(String filePath, String fileType) async {
-    if (fileType == 'pdf') {
-      return await getPdfPageCount(filePath);
-    } else if (fileType == 'zip' || fileType == 'cbz') {
+    if (fileType == 'zip' || fileType == 'cbz') {
       return await getZipPageCount(filePath);
     } else {
       throw Exception('Unsupported file type: $fileType');

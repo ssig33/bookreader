@@ -3,9 +3,7 @@ import 'package:flutter/services.dart';
 import '../../models/book.dart';
 import '../../services/book_service.dart';
 import 'reader_image_loader.dart';
-import 'reader_pdf_loader.dart';
 import 'reader_page_layout.dart';
-import 'reader_pdf_page_layout.dart';
 import 'reader_navigation.dart';
 import 'reader_keyboard_handler.dart';
 
@@ -32,9 +30,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // 各コンポーネント
   ReaderImageLoader? _imageLoader;
-  ReaderPdfLoader? _pdfLoader;
   ReaderPageLayout? _pageLayout;
-  ReaderPdfPageLayout? _pdfPageLayout;
   ReaderNavigation? _navigation;
   ReaderKeyboardHandler? _keyboardHandler;
 
@@ -49,9 +45,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     // ファイルタイプに応じて適切なローダーを初期化
     if (widget.book.fileType == 'zip' || widget.book.fileType == 'cbz') {
       _loadZipFile();
-    } else if (widget.book.fileType == 'pdf') {
-      _loadPdfFile();
     }
+    // PDFファイルタイプは現在サポートされていません
 
     // フォーカスノードにフォーカスを当てる
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -109,61 +104,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  // PDFファイルを読み込む
-  Future<void> _loadPdfFile() async {
-    setState(() {
-      // ローディング状態を設定
-    });
-
-    try {
-      // PDFローダーを初期化
-      _pdfLoader = ReaderPdfLoader(book: widget.book);
-
-      // PDFを読み込む
-      await _pdfLoader!.loadPdf();
-
-      // PDFページレイアウトを初期化
-      _pdfPageLayout = ReaderPdfPageLayout(
-        book: widget.book,
-        pdfLoader: _pdfLoader!,
-      );
-
-      // PDFのアスペクト比を分析して見開きレイアウトを決定
-      await _pdfPageLayout!.determinePageLayout(context);
-
-      // ナビゲーションを初期化
-      _navigation = ReaderNavigation(
-        book: widget.book,
-        pageController: _pageController,
-        useDoublePage: _pdfPageLayout!.useDoublePage,
-        pageLayout: _pdfPageLayout!.pageLayout,
-      );
-
-      // キーボードハンドラーを初期化
-      _keyboardHandler = ReaderKeyboardHandler(
-        goToPreviousPage: _goToPreviousPage,
-        goToNextPage: _goToNextPage,
-        goToPreviousSinglePage: _goToPreviousSinglePage,
-        goToNextSinglePage: _goToNextSinglePage,
-        debugPageController: _debugPageController,
-      );
-
-      setState(() {
-        // 状態を更新
-      });
-    } catch (e) {
-      print('PDF読み込みエラー: $e');
-      setState(() {
-        // エラー状態を設定
-      });
-    }
-  }
+  // PDFファイルの読み込みは現在サポートされていません
 
   @override
   void dispose() {
     _pageController.dispose();
     _focusNode.dispose();
-    _pdfLoader?.dispose();
     super.dispose();
   }
 
@@ -291,80 +237,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _imageLoader!.preloadPage(page);
       }
     }
-    // PDFファイルの場合
-    else if (fileType == 'pdf' && _pdfLoader != null) {
-      // 読み方向に応じてプリロードするページを決定
-      final pagesToPreload = <int>[];
-
-      // 見開きページの場合は、レイアウトに基づいてプリロード
-      if (_pdfPageLayout != null && _pdfPageLayout!.useDoublePage) {
-        // 現在のページレイアウトインデックスを取得
-        final currentLayoutIndex = currentPage;
-
-        // 前後のレイアウトインデックスを計算
-        final prevLayoutIndex = currentLayoutIndex - 1;
-        final nextLayoutIndex = currentLayoutIndex + 1;
-
-        // 前のレイアウトに含まれるページをプリロード
-        if (prevLayoutIndex >= 0 &&
-            prevLayoutIndex < _pdfPageLayout!.pageLayout.length) {
-          final prevPageData = _pdfPageLayout!.pageLayout[prevLayoutIndex];
-          if (prevPageData < 65536) {
-            // シングルページの場合
-            pagesToPreload.add(prevPageData);
-          } else {
-            // ダブルページの場合
-            pagesToPreload.add(prevPageData >> 16); // 左ページ
-            pagesToPreload.add(prevPageData & 0xFFFF); // 右ページ
-          }
-        }
-
-        // 次のレイアウトに含まれるページをプリロード
-        if (nextLayoutIndex >= 0 &&
-            nextLayoutIndex < _pdfPageLayout!.pageLayout.length) {
-          final nextPageData = _pdfPageLayout!.pageLayout[nextLayoutIndex];
-          if (nextPageData < 65536) {
-            // シングルページの場合
-            pagesToPreload.add(nextPageData);
-          } else {
-            // ダブルページの場合
-            pagesToPreload.add(nextPageData >> 16); // 左ページ
-            pagesToPreload.add(nextPageData & 0xFFFF); // 右ページ
-          }
-        }
-
-        // 現在のページも解析してプリロード（まだ読み込まれていない可能性があるため）
-        final currentPageData = _pdfPageLayout!.pageLayout[currentLayoutIndex];
-        if (currentPageData >= 65536) {
-          // ダブルページの場合
-          pagesToPreload.add(currentPageData >> 16); // 左ページ
-          pagesToPreload.add(currentPageData & 0xFFFF); // 右ページ
-        } else {
-          // シングルページの場合
-          pagesToPreload.add(currentPageData);
-        }
-      } else {
-        // 単一ページの場合は前後のページをプリロード
-        pagesToPreload.addAll([
-          currentPage - 2,
-          currentPage - 1,
-          currentPage + 1,
-          currentPage + 2,
-        ]);
-      }
-
-      // 重複を削除し、範囲内のページのみをプリロード
-      final uniquePages =
-          pagesToPreload.toSet().toList()
-            ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
-
-      print('プリロードするPDFページ: $uniquePages');
-
-      // 各ページをプリロード
-      for (final page in uniquePages) {
-        _pdfLoader!.preloadPage(page);
-      }
-    }
+    // PDFファイルの場合は現在サポートされていません
   }
 
   @override
@@ -395,17 +268,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   _preloadAdjacentPages(page);
                 },
                 itemCount:
-                    widget.book.fileType == 'pdf'
-                        ? (_pdfPageLayout != null &&
-                                _pdfPageLayout?.useDoublePage == true
-                            ? _pdfPageLayout?.pageLayout.length ??
-                                widget.book.totalPages
-                            : widget.book.totalPages)
-                        : (_pageLayout != null &&
-                                _pageLayout?.useDoublePage == true
-                            ? _pageLayout?.pageLayout.length ??
-                                widget.book.totalPages
-                            : widget.book.totalPages),
+                    _pageLayout != null && _pageLayout?.useDoublePage == true
+                        ? _pageLayout?.pageLayout.length ??
+                            widget.book.totalPages
+                        : widget.book.totalPages,
                 itemBuilder: (context, index) {
                   if (widget.book.fileType == 'zip' ||
                       widget.book.fileType == 'cbz') {
@@ -418,18 +284,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     } else {
                       return const Center(child: CircularProgressIndicator());
                     }
-                  } else if (widget.book.fileType == 'pdf') {
-                    if (_pdfPageLayout != null) {
-                      return _pdfPageLayout!.buildPdfPageView(
-                        index,
-                        _isRightToLeft,
-                        context,
-                      );
-                    } else {
-                      return const Center(child: CircularProgressIndicator());
-                    }
                   } else {
-                    // その他のファイルタイプの場合は仮表示
+                    // PDFやその他のファイルタイプの場合は仮表示
                     return Container(
                       color: Colors.white,
                       child: Center(
