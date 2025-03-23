@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:cross_file/cross_file.dart';
 import '../models/book.dart';
+import '../models/search_condition.dart';
 import '../services/book_service.dart';
 import '../services/platform_service.dart';
 import '../widgets/book_list_item.dart';
@@ -24,6 +25,12 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String> _allTags = [];
   bool _isDragging = false;
 
+  // 検索関連の状態
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  List<SearchCondition> _savedSearchConditions = [];
+  bool _isSearching = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await _bookService.initialize();
       _loadBooks();
+      _loadSavedSearchConditions();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -45,8 +53,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _loadBooks() {
     setState(() {
-      _books = _bookService.getBooksByTags(_selectedTags);
+      if (_searchQuery.isEmpty) {
+        _books = _bookService.getBooksByTags(_selectedTags);
+      } else {
+        _books = _bookService.searchBooks(
+          _searchQuery,
+          selectedTags: _selectedTags,
+        );
+      }
+      // ファイル名で降順ソート
+      _books = _bookService.sortBooksByTitleDesc(_books);
       _updateAllTags();
+    });
+  }
+
+  void _loadSavedSearchConditions() {
+    setState(() {
+      _savedSearchConditions = _bookService.getSearchConditionsByLastUsed();
     });
   }
 
@@ -56,6 +79,158 @@ class _HomeScreenState extends State<HomeScreen> {
       tags.addAll(book.tags);
     }
     _allTags = tags.toList()..sort();
+  }
+
+  // 検索を実行
+  void _performSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+      _loadBooks();
+    });
+  }
+
+  // 検索条件を保存
+  Future<void> _saveSearchCondition(String name, String query) async {
+    try {
+      await _bookService.saveSearchCondition(name, query);
+      _loadSavedSearchConditions();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('検索条件「$name」を保存しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存エラー: ${e.toString()}')));
+      }
+    }
+  }
+
+  // 保存した検索条件を使用
+  Future<void> _useSearchCondition(SearchCondition condition) async {
+    try {
+      await _bookService.useSearchCondition(condition.id);
+      _searchController.text = condition.query;
+      _performSearch(condition.query);
+      _loadSavedSearchConditions(); // 使用順を更新するため再読み込み
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('エラー: ${e.toString()}')));
+      }
+    }
+  }
+
+  // 保存した検索条件を削除
+  Future<void> _deleteSearchCondition(SearchCondition condition) async {
+    try {
+      await _bookService.deleteSearchCondition(condition.id);
+      _loadSavedSearchConditions();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('検索条件「${condition.name}」を削除しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除エラー: ${e.toString()}')));
+      }
+    }
+  }
+
+  // 検索条件保存ダイアログを表示
+  void _showSaveSearchDialog() {
+    // デフォルトの名前として検索クエリを使用
+    final nameController = TextEditingController(text: _searchQuery);
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('検索条件を保存'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '名前',
+                    hintText: '検索条件の名前を入力してください',
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                Text('検索条件: $_searchQuery'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('キャンセル'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final name = nameController.text.trim();
+                  if (name.isNotEmpty) {
+                    _saveSearchCondition(name, _searchQuery);
+                  }
+                  Navigator.pop(context);
+                },
+                child: const Text('保存'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // 保存した検索条件一覧ダイアログを表示
+  void _showSavedSearchesDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('保存した検索条件'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child:
+                  _savedSearchConditions.isEmpty
+                      ? const Center(child: Text('保存された検索条件はありません'))
+                      : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _savedSearchConditions.length,
+                        itemBuilder: (context, index) {
+                          final condition = _savedSearchConditions[index];
+                          return ListTile(
+                            title: Text(condition.name),
+                            subtitle: Text(condition.query),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _useSearchCondition(condition);
+                            },
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _deleteSearchCondition(condition);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('閉じる'),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> _pickAndAddBook() async {
@@ -264,13 +439,58 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ブックリーダー'),
+        title:
+            _isSearching
+                ? TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'ファイル名またはタグで検索...',
+                    hintStyle: TextStyle(color: Colors.grey[600]),
+                    border: InputBorder.none,
+                  ),
+                  style: const TextStyle(color: Colors.black),
+                  autofocus: true,
+                  onChanged: _performSearch,
+                )
+                : const Text('ブックリーダー'),
         actions: [
+          // 検索ボタン
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _searchQuery = '';
+                  _loadBooks();
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
+            tooltip: _isSearching ? '検索をクリア' : '検索',
+          ),
+          // 検索条件保存ボタン（検索中のみ表示）
+          if (_isSearching && _searchQuery.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: _showSaveSearchDialog,
+              tooltip: '検索条件を保存',
+            ),
+          // 保存した検索条件ボタン
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: _showSavedSearchesDialog,
+            tooltip: '保存した検索条件',
+          ),
+          // タグフィルターボタン
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterDialog,
             tooltip: 'タグでフィルター',
           ),
+          // ストレージ情報ボタン
           IconButton(
             icon: const Icon(Icons.storage),
             onPressed: () {
