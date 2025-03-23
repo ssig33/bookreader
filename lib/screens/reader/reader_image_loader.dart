@@ -355,25 +355,75 @@ class ReaderImageLoader {
                     maxWidth: MediaQuery.of(context).size.width / 2,
                   )
                   : null,
-          child:
-              useDoublePage
-                  // 見開きモードではアニメーションを使用しない
-                  ? Image.memory(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 画像のサイズを取得するためのImageProvider
+              final imageProvider = MemoryImage(snapshot.data!);
+
+              return FutureBuilder<Size>(
+                future: _getImageSize(imageProvider, context),
+                builder: (context, imageSizeSnapshot) {
+                  // 画像サイズの取得中はBoxFit.containを使用
+                  BoxFit fitMode = BoxFit.contain;
+
+                  // 画像サイズが取得できた場合
+                  if (imageSizeSnapshot.hasData) {
+                    final imageSize = imageSizeSnapshot.data!;
+                    final containerWidth =
+                        useDoublePage
+                            ? MediaQuery.of(context).size.width / 2
+                            : MediaQuery.of(context).size.width;
+                    final containerHeight = MediaQuery.of(context).size.height;
+
+                    // 画像がコンテナよりも小さい場合は拡大
+                    if (imageSize.width < containerWidth &&
+                        imageSize.height < containerHeight) {
+                      debugPrint(
+                        'Small image detected: ${imageSize.width}x${imageSize.height}, container: ${containerWidth}x$containerHeight',
+                      );
+                      // アスペクト比を維持したままギリギリまで拡大
+                      // BoxFit.containは小さい画像の場合、拡大されないことがあるため、
+                      // 明示的に拡大するようにscaleを設定
+                      fitMode = BoxFit.contain;
+                    }
+                  }
+
+                  // コンテナのサイズを取得
+                  final containerWidth =
+                      useDoublePage
+                          ? MediaQuery.of(context).size.width / 2
+                          : MediaQuery.of(context).size.width;
+                  final containerHeight = MediaQuery.of(context).size.height;
+
+                  // 小さい画像の場合は明示的にサイズを指定して拡大
+                  final bool isSmallImage =
+                      imageSizeSnapshot.hasData &&
+                      imageSizeSnapshot.data!.width < containerWidth &&
+                      imageSizeSnapshot.data!.height < containerHeight;
+
+                  // 画像ウィジェットを作成
+                  Widget imageWidget = Image.memory(
                     snapshot.data!,
                     key: ValueKey<int>(pageIndex),
-                    fit: BoxFit.contain,
+                    fit: fitMode,
                     gaplessPlayback: true,
-                  )
-                  // 通常モードではアニメーションを維持
-                  : AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Image.memory(
-                      snapshot.data!,
-                      key: ValueKey<int>(pageIndex),
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                    ),
-                  ),
+                    // 小さい画像の場合は明示的にコンテナサイズを指定
+                    // アスペクト比を維持するため、widthのみ指定
+                    width: isSmallImage ? containerWidth : null,
+                  );
+
+                  return useDoublePage
+                      // 見開きモードではアニメーションを使用しない
+                      ? imageWidget
+                      // 通常モードではアニメーションを維持
+                      : AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: imageWidget,
+                      );
+                },
+              );
+            },
+          ),
         );
       },
     );
@@ -387,5 +437,39 @@ class ReaderImageLoader {
       return await _fileService.getImageAspectRatio(imageData);
     }
     return null;
+  }
+
+  /// ImageProviderから画像のサイズを取得する
+  Future<Size> _getImageSize(
+    ImageProvider imageProvider,
+    BuildContext context,
+  ) async {
+    final Completer<Size> completer = Completer<Size>();
+
+    final ImageStream stream = imageProvider.resolve(
+      const ImageConfiguration(),
+    );
+
+    final ImageStreamListener listener = ImageStreamListener(
+      (ImageInfo info, bool _) {
+        final Size size = Size(
+          info.image.width.toDouble(),
+          info.image.height.toDouble(),
+        );
+        completer.complete(size);
+      },
+      onError: (dynamic exception, StackTrace? stackTrace) {
+        debugPrint('Error loading image: $exception');
+        // エラーの場合はデフォルトサイズを返す
+        completer.complete(const Size(100, 100));
+      },
+    );
+
+    stream.addListener(listener);
+
+    return completer.future.then((size) {
+      stream.removeListener(listener);
+      return size;
+    });
   }
 }
