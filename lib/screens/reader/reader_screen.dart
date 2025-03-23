@@ -388,10 +388,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                         context,
                       );
                     } else if (widget.book.fileType == 'pdf') {
-                      // PDFファイルの場合も同じビューを使用（内部で適切に処理される）
-                      return _imageLoader!.buildSinglePageView(
+                      // PDFファイルの場合もZIPファイルと同様に、ページのアスペクト比を確認して見開き表示を決定
+                      return _pageLayout!.buildZipPageView(
                         index,
-                        _pageLayout!.useDoublePage,
+                        _isRightToLeft,
                         context,
                       );
                     }
