@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -179,24 +178,49 @@ class FileService {
 
     final file = File(filePath);
     if (!await file.exists()) {
+      debugPrint('ERROR: PDF file does not exist: $filePath');
       throw Exception('File does not exist: $filePath');
     }
 
+    PdfImageRenderer? renderer;
     try {
       // pdf_image_rendererを使用してPDFを開く
-      final renderer = PdfImageRenderer(path: filePath);
-      await renderer.open();
+      debugPrint('Opening PDF file for page count: $filePath');
+      renderer = PdfImageRenderer(path: filePath);
+
+      try {
+        await renderer.open();
+        debugPrint('Successfully opened PDF file: $filePath');
+      } catch (e) {
+        debugPrint('ERROR: Failed to open PDF file: $e');
+        return 0;
+      }
 
       // ページ数を取得
-      final pageCount = await renderer.getPageCount();
-
-      // リソースを解放
-      await renderer.close();
-
-      return pageCount;
+      try {
+        final pageCount = await renderer.getPageCount();
+        debugPrint('PDF page count for $filePath: $pageCount');
+        return pageCount;
+      } catch (e) {
+        debugPrint('ERROR: Failed to get PDF page count: $e');
+        return 0;
+      }
     } catch (e) {
-      // エラーの場合は0を返す
+      // 予期せぬエラーの場合
+      debugPrint('UNEXPECTED ERROR in PDF page count: $e');
+      debugPrint('Stack trace: ${StackTrace.current}');
       return 0;
+    } finally {
+      // 例外が発生しても確実にリソースを解放
+      if (renderer != null) {
+        try {
+          debugPrint('Closing PDF renderer for file: $filePath');
+          await renderer.close();
+          debugPrint('Successfully closed PDF renderer');
+        } catch (e) {
+          debugPrint('ERROR: Failed to close PDF renderer: $e');
+        }
+      }
     }
   }
 

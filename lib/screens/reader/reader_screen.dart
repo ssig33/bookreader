@@ -276,45 +276,61 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   /// 隣接するページをプリロードする
   void _preloadAdjacentPages(int currentPage) {
-    // ZIPまたはPDFファイルの場合
-    // ZIPまたはPDFファイルの場合
-    if (_imageLoader != null) {
-      // 読み方向に応じてプリロードするページを決定
-      final pagesToPreload = <int>[];
+    if (_imageLoader == null) return;
 
-      // 見開きページの場合は、現在のページと次のページ、およびその前後をプリロード
-      if (_pageLayout != null && _pageLayout!.useDoublePage) {
-        // 現在のページと次のページ
-        pagesToPreload.add(currentPage);
-        pagesToPreload.add(currentPage + 1);
+    // 読み方向に応じてプリロードするページを決定
+    final pagesToPreload = <int>[];
 
-        // 前後のページもプリロード
-        pagesToPreload.add(currentPage - 1);
-        pagesToPreload.add(currentPage - 2);
-        pagesToPreload.add(currentPage + 2);
-        pagesToPreload.add(currentPage + 3);
-      } else {
-        // 単一ページの場合は前後のページをプリロード
-        pagesToPreload.addAll([
-          currentPage - 2,
-          currentPage - 1,
-          currentPage,
-          currentPage + 1,
-          currentPage + 2,
-        ]);
+    // 見開きページの場合は、現在のページと次のページ、およびその前後をプリロード
+    if (_pageLayout != null && _pageLayout!.useDoublePage) {
+      // 現在のページと次のページを最優先
+      pagesToPreload.add(currentPage);
+      pagesToPreload.add(currentPage + 1);
+
+      // 次に重要なのは直後のページ
+      pagesToPreload.add(currentPage + 2);
+      pagesToPreload.add(currentPage + 3);
+
+      // 最後に前のページ
+      pagesToPreload.add(currentPage - 1);
+      pagesToPreload.add(currentPage - 2);
+    } else {
+      // 単一ページの場合は前後のページをプリロード（優先順位付き）
+      pagesToPreload.add(currentPage); // 現在のページ（既に表示中かもしれないが、キャッシュ確認のため）
+      pagesToPreload.add(currentPage + 1); // 次のページが最優先
+      pagesToPreload.add(currentPage - 1); // 前のページは次に重要
+      pagesToPreload.add(currentPage + 2); // その次は2ページ先
+      pagesToPreload.add(currentPage - 2); // 最後に2ページ前
+    }
+
+    // 重複を削除し、範囲内のページのみをプリロード
+    final uniquePages =
+        pagesToPreload.toSet().toList()
+          ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
+
+    debugPrint('Preloading pages: $uniquePages (current: $currentPage)');
+
+    // PDFファイルの場合は順次プリロード（Androidの制限に対応）
+    if (widget.book.fileType == 'pdf') {
+      // 非同期で順次プリロード
+      Future<void> preloadSequentially() async {
+        for (final page in uniquePages) {
+          try {
+            await _imageLoader!.preloadPage(page);
+          } catch (e) {
+            debugPrint('Error preloading page $page: $e');
+          }
+        }
       }
 
-      // 重複を削除し、範囲内のページのみをプリロード
-      final uniquePages =
-          pagesToPreload.toSet().toList()
-            ..removeWhere((page) => page < 0 || page >= widget.book.totalPages);
-
-      // 各ページをプリロード
+      // 非同期でプリロードを開始（結果を待たない）
+      preloadSequentially();
+    } else {
+      // ZIPファイルの場合は並行してプリロード可能
       for (final page in uniquePages) {
         _imageLoader!.preloadPage(page);
       }
     }
-    // 他のファイルタイプの場合は何もしない
   }
 
   @override
