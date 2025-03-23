@@ -276,9 +276,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   /// 隣接するページをプリロードする
   void _preloadAdjacentPages(int currentPage) {
-    // ファイルタイプに応じて適切なローダーを使用
-    final fileType = widget.book.fileType;
-
+    // ZIPまたはPDFファイルの場合
     // ZIPまたはPDFファイルの場合
     if (_imageLoader != null) {
       // 読み方向に応じてプリロードするページを決定
