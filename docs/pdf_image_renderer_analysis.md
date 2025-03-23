@@ -1,16 +1,35 @@
-# pdf_image_renderer Library Analysis
+# pdf_image_renderer Library Analysis - 実装ノート
 
 ## Core Functionality Map
 
 - **Primary Purpose**: Convert PDF pages to bitmap images
 - **Implementation**: Uses native renderers on each platform
-- **Platform Support**: 
+- **Platform Support**:
   - ✅ Android
   - ✅ iOS
   - ❌ Windows
   - ❌ macOS
   - ❌ Linux
   - ❌ Web
+
+## 実装ステータス
+
+- **実装日**: 2025年3月23日
+- **実装者**: Roo
+- **実装状況**:
+  - ✅ PDFファイルのページ数取得
+  - ✅ PDFページの画像への変換
+  - ✅ プラットフォーム検出によるUI制限（Android/iOSのみPDF追加可能）
+  - ✅ リーダー画面でのPDF表示
+
+## プラットフォーム対応
+
+このライブラリはAndroidとiOSのみをサポートしています。アプリケーションでは、プラットフォーム検出を行い、サポートされているプラットフォームでのみPDFファイルの追加を許可しています。
+
+- **サポート済み**: Android, iOS
+- **サポート外**: Windows, macOS, Linux, Web
+
+サポートされていないプラットフォームでPDFファイルを追加しようとすると、エラーメッセージが表示されます。
 
 ## API Structure
 

@@ -39,10 +39,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _currentPage = widget.book.lastReadPage;
     _isRightToLeft = widget.book.isRightToLeft; // 初期値を設定
     _pageController = PageController(initialPage: _currentPage);
-
     // ファイルタイプに応じて適切なローダーを初期化
     if (widget.book.fileType == 'zip' || widget.book.fileType == 'cbz') {
       _loadZipFile();
+    } else if (widget.book.fileType == 'pdf') {
+      _loadPdfFile();
     }
     // PDFファイルタイプは現在サポートされていません
 
@@ -102,7 +103,55 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  // PDFファイルの読み込みは現在サポートされていません
+  // PDFファイルを読み込む
+  Future<void> _loadPdfFile() async {
+    setState(() {
+      // ローディング状態を設定
+    });
+
+    try {
+      // PDFローダーを初期化
+      _imageLoader = ReaderImageLoader(book: widget.book);
+
+      // 画像を読み込む
+      await _imageLoader!.loadPdfImages();
+
+      // ページレイアウトを初期化
+      _pageLayout = ReaderPageLayout(
+        book: widget.book,
+        imageLoader: _imageLoader!,
+      );
+
+      // 画像のアスペクト比を分析して見開きレイアウトを決定
+      if (!mounted) return;
+      await _pageLayout!.determinePageLayout(context);
+
+      // ナビゲーションを初期化
+      _navigation = ReaderNavigation(
+        book: widget.book,
+        pageController: _pageController,
+        useDoublePage: _pageLayout!.useDoublePage,
+        pageLayout: _pageLayout!,
+      );
+
+      // キーボードハンドラーを初期化
+      _keyboardHandler = ReaderKeyboardHandler(
+        goToPreviousPage: _goToPreviousPage,
+        goToNextPage: _goToNextPage,
+        goToPreviousSinglePage: _goToPreviousSinglePage,
+        goToNextSinglePage: _goToNextSinglePage,
+        debugPageController: _debugPageController,
+      );
+
+      setState(() {
+        // 状態を更新
+      });
+    } catch (e) {
+      setState(() {
+        // エラー状態を設定
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -230,8 +279,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     // ファイルタイプに応じて適切なローダーを使用
     final fileType = widget.book.fileType;
 
-    // ZIPファイルの場合
-    if ((fileType == 'zip' || fileType == 'cbz') && _imageLoader != null) {
+    // ZIPまたはPDFファイルの場合
+    if (_imageLoader != null) {
       // 読み方向に応じてプリロードするページを決定
       final pagesToPreload = <int>[];
 
@@ -267,7 +316,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _imageLoader!.preloadPage(page);
       }
     }
-    // PDFファイルの場合は現在サポートされていません
+    // 他のファイルタイプの場合は何もしない
   }
 
   @override
@@ -299,29 +348,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 },
                 itemCount: widget.book.totalPages,
                 itemBuilder: (context, index) {
-                  if (widget.book.fileType == 'zip' ||
-                      widget.book.fileType == 'cbz') {
-                    if (_pageLayout != null) {
+                  if (_pageLayout != null) {
+                    if (widget.book.fileType == 'zip' ||
+                        widget.book.fileType == 'cbz') {
                       return _pageLayout!.buildZipPageView(
                         index,
                         _isRightToLeft,
                         context,
                       );
-                    } else {
-                      return const Center(child: CircularProgressIndicator());
+                    } else if (widget.book.fileType == 'pdf') {
+                      // PDFファイルの場合も同じビューを使用（内部で適切に処理される）
+                      return _imageLoader!.buildSinglePageView(
+                        index,
+                        _pageLayout!.useDoublePage,
+                        context,
+                      );
                     }
-                  } else {
-                    // PDFやその他のファイルタイプの場合は仮表示
-                    return Container(
-                      color: Colors.white,
-                      child: Center(
-                        child: Text(
-                          'ページ ${index + 1}',
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                      ),
-                    );
                   }
+
+                  // ローディング中またはサポートされていないファイルタイプの場合
+                  return const Center(child: CircularProgressIndicator());
                 },
               ),
 

@@ -4,6 +4,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:cross_file/cross_file.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
+import '../services/platform_service.dart';
 import '../widgets/book_list_item.dart';
 import 'storage_info_screen.dart';
 import 'reader_screen.dart';
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final BookService _bookService = BookService();
+  final PlatformService _platformService = PlatformService();
   List<Book> _books = [];
   final List<String> _selectedTags = [];
   List<String> _allTags = [];
@@ -58,9 +60,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _pickAndAddBook() async {
     try {
+      // プラットフォームに応じて許可される拡張子を決定
+      List<String> allowedExtensions = ['zip', 'cbz'];
+
+      // PDFをサポートしているプラットフォームの場合のみPDFを許可
+      if (_platformService.isPdfSupported()) {
+        allowedExtensions.add('pdf');
+      }
+
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['zip', 'cbz', 'pdf'],
+        allowedExtensions: allowedExtensions,
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -95,9 +105,20 @@ class _HomeScreenState extends State<HomeScreen> {
         final path = file.path;
         final extension = path.split('.').last.toLowerCase();
 
-        if (['zip', 'cbz', 'pdf'].contains(extension)) {
+        // プラットフォームに応じて許可される拡張子を決定
+        List<String> allowedExtensions = ['zip', 'cbz'];
+        if (_platformService.isPdfSupported()) {
+          allowedExtensions.add('pdf');
+        }
+
+        if (allowedExtensions.contains(extension)) {
           await _bookService.addBook(path);
           successCount++;
+        } else if (extension == 'pdf' && !_platformService.isPdfSupported()) {
+          // PDFファイルがサポートされていないプラットフォームの場合
+          errors.add(
+            '${file.name}: このプラットフォーム(${_platformService.getPlatformName()})ではPDFはサポートされていません',
+          );
         } else {
           errors.add('${file.name}: サポートされていないファイル形式です');
         }

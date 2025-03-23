@@ -49,6 +49,9 @@ dependencies:
   # ファイル処理
   archive: ^3.4.10
   flutter_launcher_icons: ^0.14.3
+  
+  # PDFサポート
+  pdf_image_renderer: ^1.0.1
 
 dev_dependencies:
   flutter_test:
