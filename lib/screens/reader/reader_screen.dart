@@ -345,12 +345,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 KeyEventResult.ignored,
         child: GestureDetector(
           onTap: _toggleControls,
+          // スワイプジェスチャーを検出
+          onHorizontalDragEnd: (details) {
+            if (_navigation == null) return;
+
+            // スワイプの方向を検出
+            if (details.primaryVelocity != null) {
+              if (details.primaryVelocity! < 0) {
+                // 左にスワイプ（次のページへ）
+                _isRightToLeft ? _goToPreviousPage() : _goToNextPage();
+              } else if (details.primaryVelocity! > 0) {
+                // 右にスワイプ（前のページへ）
+                _isRightToLeft ? _goToNextPage() : _goToPreviousPage();
+              }
+            }
+          },
           child: Stack(
             children: [
               // ページビュー（ここに実際の本の内容を表示）
               PageView.builder(
                 controller: _pageController,
                 reverse: _isRightToLeft, // 右から左への読み方向に対応
+                // スワイプを無効化
+                physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (int page) {
                   setState(() {
                     _currentPage = page;
