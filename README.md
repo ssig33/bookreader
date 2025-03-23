@@ -2,6 +2,9 @@
 
 マンガや電子書籍を複数のプラットフォームで読むためのFlutterアプリケーション
 
+![image](https://github.com/user-attachments/assets/e871c38c-b32d-4439-a688-f6b27cd4aa1c)
+
+
 ## 概要
 
 BookReaderは、ZIP/CBZ/PDFファイルを管理し、快適に閲覧するためのクロスプラットフォームアプリケーションです。シンプルなインターフェースと高速な表示機能を備え、マンガや電子書籍を効率的に管理・閲覧できます。
