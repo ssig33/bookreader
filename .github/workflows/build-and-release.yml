@@ -27,6 +27,19 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # 署名用のkeystoreファイルを復元
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/bookreader.keystore
+
+      # key.propertiesファイルを作成
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=bookreader.keystore" >> android/key.properties
+
       - name: Build APK
         run: flutter build apk --release
 
