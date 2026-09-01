@@ -37,8 +37,8 @@ dependencies:
 
   # ファイル操作関連
   path: ^1.8.3
-  file_picker: 10.3.3
-  desktop_drop: 0.7.0
+  file_picker: 10.3.10
+  desktop_drop: 0.8.4
 
   # データ管理
   uuid: ^4.3.3
