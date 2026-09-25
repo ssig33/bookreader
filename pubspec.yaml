@@ -37,13 +37,13 @@ dependencies:
 
   # ファイル操作関連
   path: ^1.8.3
-  file_picker: 10.3.3
-  desktop_drop: 0.7.0
+  file_picker: 10.3.10
+  desktop_drop: 0.8.4
 
   # データ管理
   uuid: ^4.3.3
   shared_preferences: ^2.2.2
-  cross_file: ^0.3.4+2
+  cross_file: ^0.4.0
   path_provider: ^2.1.2
 
   # ファイル処理
